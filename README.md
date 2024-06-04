@@ -1,2 +1,2 @@
-# StixelNExT_Pro
+# StixelNExT Pro
 Coming soon ...
