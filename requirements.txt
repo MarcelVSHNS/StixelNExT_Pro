@@ -1,0 +1,10 @@
+pandas
+numpy
+torch
+matplotlib
+wandb
+torchsummary
+pyyaml
+opencv-python
+Pillow
+optuna
