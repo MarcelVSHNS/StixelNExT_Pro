@@ -1,14 +1,11 @@
 from torch import nn
 from torch import Tensor
-from typing import List
-from torchvision.ops import StochasticDepth
-import torch
 
 
 class ConvNextStem(nn.Sequential):
     def __init__(self, in_features: int, out_features: int):
-        super().__init__(nn.Conv2d(in_features, out_features, kernel_size=4, stride=4),                                 # 1.conv2d
-                         nn.BatchNorm2d(out_features))                                                                  # 2.BatchNorm2d
+        super().__init__(nn.Conv2d(in_features, out_features, kernel_size=4, stride=4),    
+                         nn.BatchNorm2d(out_features))            
 
 
 class ConvNexStage(nn.Sequential):
@@ -16,8 +13,8 @@ class ConvNexStage(nn.Sequential):
         super().__init__(
             # add the downsampler
             nn.Sequential(
-                nn.GroupNorm(num_groups=1, num_channels=in_features),                                                   # 3.groupnorm
-                nn.Conv2d(in_features, out_features, kernel_size=2, stride=2)),                                         # 4. conv2d
+                nn.GroupNorm(num_groups=1, num_channels=in_features),                                                  
+                nn.Conv2d(in_features, out_features, kernel_size=2, stride=2)),                                     
             *[
                 BottleNeckBlock(out_features, out_features)
                 for _ in range(depth)
@@ -30,14 +27,14 @@ class BottleNeckBlock(nn.Module):
         super().__init__()
         self.block = nn.Sequential(
             # narrow -> wide (with depth-wise and bigger kernel)
-            nn.Conv2d(in_features, in_features, kernel_size=7, padding=3, bias=False, groups=in_features),              # 5. conv
+            nn.Conv2d(in_features, in_features, kernel_size=7, padding=3, bias=False, groups=in_features),   
             # GroupNorm with num_groups=1 is the same as LayerNorm but works for 2D data
-            nn.GroupNorm(num_groups=1, num_channels=in_features),                                                       # 6. groupnorm
+            nn.GroupNorm(num_groups=1, num_channels=in_features),                         
             # wide -> wide
-            nn.Conv2d(in_features, out_features * expansion, kernel_size=1),                                            # 7. conv
-            nn.GELU(),                                                                                                  # 8 gelu
+            nn.Conv2d(in_features, out_features * expansion, kernel_size=1),             
+            nn.GELU(),                                                              
             # wide -> narrow
-            nn.Conv2d(out_features * expansion, out_features, kernel_size=1),                                           # 9.conv
+            nn.Conv2d(out_features * expansion, out_features, kernel_size=1),            
         )
 
     def forward(self, x: Tensor) -> Tensor:
