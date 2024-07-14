@@ -1,1 +1,2 @@
-from .unet import UNet
+from .UNet import UNet
+from .ConvNeXt import ConvNeXt
