@@ -1,9 +1,10 @@
 pandas
 numpy
 torch
+torchvision
 matplotlib
 wandb
-torchsummary
+torchinfo
 pyyaml
 opencv-python
 Pillow

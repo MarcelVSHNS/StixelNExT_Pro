@@ -1,19 +1,15 @@
 import torch
-import numpy as np
-
-from models import UNet, ConvNeXt
+from torchvision.models.convnext import ConvNeXt
+from models import convnext_stixel
 from torchinfo import summary
 
 # model = UNet(n_channels=3)
 # model = ConvNeXt(in_channels=3, c=60, depths_b=[3, 3, 27, 3])
-# summary(model, input_size=(1, 3, 1280, 1920), device=torch.device('cpu'))
+model: ConvNeXt = convnext_stixel()
 
-gt_lst = []
-for _ in range(240):
-    gt_lst.append([])
-gt_lst[3].append([0.1, 0.3, 0.2, 1.0])
-gt_lst[3].append([0.1, 0.3, 0.2, 1.0])
-mein_array = np.array(gt_lst)
+input_shape = (1, 3, 1280, 1920)
+output = torch.randn(input_shape)
+output = model(output)
 
-print("hi")
-
+summary(model, input_size=input_shape, device=torch.device('cpu'))
+print(f"Output shape: {output.shape}")
