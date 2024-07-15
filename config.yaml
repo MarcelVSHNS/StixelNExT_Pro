@@ -1,9 +1,10 @@
 data_path: /home/marcel/workspace/datasets
+model: "unet"               # convnext
 epochs: 5
 batch_size: 1
 learning_rate: 1.0e-05
 load_checkpoint: null       # e.g. StixelNExT_Pro_volcanic-spaceship-170_epoch-31_test-error-0.2544909715652466.pth or null to not load a checkpoint
-logging: false              # Wandb
+logging: true               # Wandb
 early_stop:
   tol: 8                    # tolerance
   min_delta: 0.00001        # minimum improvement after {tolerance} iterations

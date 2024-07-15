@@ -1,3 +1,5 @@
+import yaml
+from typing import List, Dict
 from torch import nn
 from torch import Tensor
 
@@ -56,8 +58,13 @@ class Head(nn.Module):
 
 class ConvNeXt(nn.Module):
     """ Defaults: in_channels=3, widths_c=96, depths_b=[3, 3, 9, 3]"""
-    def __init__(self, in_channels, c, depths_b, stem_features=64):
+    def __init__(self, in_channels=3):
         super().__init__()
+        with open('convnext-config.yaml') as file:
+            self.config = yaml.load(file, Loader=yaml.FullLoader)
+        c: int = self.config['widths_c']
+        depths_b: List[int] = self.config['depths_b']
+        stem_features = self.config['stem_features']
         # Stem
         self.stem = ConvNextStem(in_channels, stem_features)
         self.stage_1 = ConvNexStage(in_features=stem_features, out_features=c, depth=depths_b[0])
@@ -66,6 +73,9 @@ class ConvNeXt(nn.Module):
         self.stage_4 = ConvNexStage(in_features=c * 4, out_features=c * 8, depth=depths_b[3])
         # Head
         self.head = Head(in_channels=c * 8)
+
+    def params(self) -> Dict[str, List[int]]:
+        return {'C': self.config['widths_c'], 'B': self.config['depths_b']}
 
     def forward(self, x):
         x = self.stem(x)

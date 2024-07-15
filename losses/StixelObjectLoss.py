@@ -1,4 +1,5 @@
 from torch import nn
+from typing import List, Tuple, Dict
 import torch
 
 
@@ -11,6 +12,9 @@ class StixelLoss(nn.Module):
         self.beta = beta
         self.gamma = gamma
         self.bce_loss = nn.BCELoss(reduction='mean')
+
+    def params(self) -> Dict[str, bool]:
+        return {'alpha': self.alpha, 'beta': self.beta, 'gamma': self.gamma}
 
     def forward(self, inputs, targets):
         loss_bce_occ = 0.0
@@ -30,3 +34,16 @@ class StixelLoss(nn.Module):
             loss_bce_cut = self.alpha * loss_bce_cut
             single_monitoring_dicts.append({'name': "bce_edges", 'value': loss_bce_cut})
         return loss_bce_occ + loss_maximum_cuts_occ + loss_bce_cut, single_monitoring_dicts
+
+
+class StixelObjectLoss(nn.Module):
+    def __init__(self):
+        super(StixelObjectLoss, self).__init__()
+        self.loss_fn = nn.MSELoss(reduction='mean')
+
+    @staticmethod
+    def params() -> Dict[str, str]:
+        return {'loss': "MSE"}
+
+    def forward(self, inputs, targets):
+        return self.loss_fn(inputs, targets)
