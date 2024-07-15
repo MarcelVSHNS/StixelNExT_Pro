@@ -1,23 +1,19 @@
 import yaml
 import torch
-from typing import List, Dict
+from typing import List, Dict, Any, Tuple
 from torch.utils.checkpoint import checkpoint
 import torch.nn as nn
 import torch.nn.functional as F
 
 
 class UNet(nn.Module):
-    def __init__(self, in_channels=3):
+    def __init__(self, in_channels=3, n_obj_preds=192):
         """
         Initializes the UNet class.
         :param n_channels: Number of input channels.
         :param n_obj_preds: Number of object occurrences. Means how many possible objects per row
         """
         super(UNet, self).__init__()
-        with open('unet-config.yaml') as file:
-            config = yaml.load(file, Loader=yaml.FullLoader)
-        n_obj_preds: int = config['n_obj_preds']
-
         self.inc = (DoubleConv(in_channels, 64))
         self.down1 = (Down(64, 128, 1))
         self.down2 = (Down(128, 256, 2))
@@ -28,9 +24,6 @@ class UNet(nn.Module):
         self.up3 = (Up(256, 64, 3))
         self.up4 = (Up(128, 64, 4))
         self.outc = (OutConv(64, n_obj_preds))
-
-    def params(self) -> Dict[str, List[int]]:
-        return {}
 
     def forward(self, x):
         x1 = self.inc(x)
@@ -120,3 +113,11 @@ class OutConv(nn.Module):
 
     def forward(self, x):
         return self.conv(x)
+
+
+def unet(in_channels=3) -> Tuple[UNet, Dict[Any, Any]]:
+    with open('models/unet-config.yaml') as file:
+        config = yaml.load(file, Loader=yaml.FullLoader)
+    n_obj_preds: int = config['n_obj_preds']
+    model = UNet(in_channels=in_channels, n_obj_preds=n_obj_preds)
+    return model, {}

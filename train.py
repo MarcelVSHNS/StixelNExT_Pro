@@ -1,4 +1,5 @@
 import yaml
+
 # 0.1 Load configfile
 with open('config.yaml') as yamlfile:
     config = yaml.load(yamlfile, Loader=yaml.FullLoader)
@@ -12,7 +13,7 @@ from torchinfo import summary
 from datetime import datetime
 import os
 import shutil
-from losses import StixelLoss
+from losses import StixelObjectLoss
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from engine import train_one_epoch, evaluate, EarlyStopping
@@ -22,6 +23,8 @@ if config['model'] == "unet":
     from models import UNet as Model
 elif config['model'] == "convnext":
     from models import ConvNeXt as Model
+elif config['model'] == "convnext_pretrained":
+    from models import convnext_stixel as Model
 else:
     raise ValueError("Invalid model specified in config file!")
 
@@ -30,8 +33,10 @@ overall_start_time = datetime.now()
 
 
 def setup(rank, world_size):
+    os.environ['MASTER_ADDR'] = 'localhost'
+    os.environ['MASTER_PORT'] = '12355'
     # 'gloo' for CPUs, 'nccl' für CPUs
-    dist.init_process_group("nccl", rank=rank, world_size=world_size)
+    dist.init_process_group("gloo", rank=rank, world_size=world_size)
     torch.cuda.set_device(rank)
 
 
@@ -44,18 +49,19 @@ def train(rank, world_size):
 
     """ 1.Load data """
     # Training data
-    training_data = StixelData(data_dir=config['data_path'], phase='training', model=config['model'])
+    training_data = StixelData(data_dir=config['data_path'], phase='testing', model=config['model'])
     training_sampler = DistributedSampler(training_data, num_replicas=world_size, rank=rank)
     train_dataloader = DataLoader(training_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True,
                                   sampler=training_sampler)
     # Validation data
-    validation_data = StixelData(data_dir=config['data_path'], phase='validation', model=config['model'])
+    validation_data = StixelData(data_dir=config['data_path'], phase='testing', model=config['model'])
     validation_sampler = DistributedSampler(training_data, num_replicas=world_size, rank=rank)
     val_dataloader = DataLoader(validation_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True,
                                 sampler=validation_sampler)
 
     """ 2.Define Model """
-    model = Model().to(rank)
+    model, model_cfg = Model()
+    model = model.to(rank)
     model = DDP(model, device_ids=[rank])
 
     # Load Weights
@@ -70,9 +76,7 @@ def train(rank, world_size):
 
     """ 3.Loss function & Training functions """
     # Loss function
-    loss_fn = StixelLoss(alpha=config['loss']['alpha'],
-                         beta=config['loss']['beta'],
-                         gamma=config['loss']['gamma'])
+    loss_fn = StixelObjectLoss()
 
     # Optimizer definition
     optimizer = torch.optim.AdamW(model.parameters(), lr=config['learning_rate'])
@@ -83,11 +87,11 @@ def train(rank, world_size):
                                   config={
                                       "learning_rate": config['learning_rate'],
                                       "loss": type(loss_fn).__name__,
-                                      "loss_params": loss_fn.params(),
+                                      "loss_params": "-",
                                       "model": type(model).__name__,
-                                      "model_params": model.params(),
+                                      "model_params": model_cfg,
                                       "dataset": training_data.name,
-                                      "epochs": config['num_epochs'],
+                                      "epochs": config['epochs'],
                                       "rank": rank
                                   },
                                   tags=["training"]
@@ -102,8 +106,8 @@ def train(rank, world_size):
 
     # Training
     checkpoints = []
-    early_stopping = EarlyStopping(tolerance=config['early_stopping']['tolerance'],
-                                   min_delta=config['early_stopping']['min_delta'])
+    early_stopping = EarlyStopping(tolerance=config['early_stop']['tol'],
+                                   min_delta=config['early_stop']['min_delta'])
     for epoch in range(config['epochs']):
         print(f"\n   Epoch {epoch + 1}\n----------------------------------------------------------------")
         train_error = train_one_epoch(train_dataloader, model, loss_fn, optimizer,

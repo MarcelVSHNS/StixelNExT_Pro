@@ -4,6 +4,7 @@ import os
 import pandas as pd
 from torch.utils.data import Dataset
 from torchvision.io import read_image, ImageReadMode
+from einops import rearrange
 import numpy as np
 from typing import List, Tuple
 import cv2
@@ -14,10 +15,10 @@ import yaml
 # 0. Implementation of a Dataset
 class StixelData(Dataset):
     # 1. Implement __init()__
-    def __init__(self, data_dir: str, phase: str, model:  str, annotation_dir="targets", img_dir="FRONT", transform=None,
+    def __init__(self, data_dir: str, phase: str, model:  str, annotation_dir="targets", img_dir="STEREO_LEFT", transform=None,
                  target_transform=None, return_name=False):
         self.data_dir = os.path.join(data_dir, phase)
-        with open('dataset-config.yaml') as file:
+        with open(data_dir + '/dataset-config.yaml') as file:
             config = yaml.load(file, Loader=yaml.FullLoader)
             self.name = config['name']
             self.img_size = {'height': int(config['img_height']), 'width': int(config['img_width'])}
@@ -51,15 +52,17 @@ class StixelData(Dataset):
         else:
             return feature_image, target_labels
 
-    def _preparation_of_target_label(self, y_target: pandas.DataFrame, grid_step: int = 8, n_obj_preds: int = 15) -> torch.tensor:
-        # img_path,x,yT,yB,class,depth
-        y_target['x'] = (y_target['x'] // grid_step).astype(int)                            # u as index
+    def _preparation_of_target_label(self, y_target: pandas.DataFrame, epsilon=1e-6, n_obj_preds: int = 192) -> torch.tensor:
+        # img_path,x,yT,yB,class,depth: prepare data like normalization and scaling
+        y_target['x'] = (y_target['x'] // 8).astype(int)                            # u as index
         y_target['yT'] = (y_target['yT'] / self.img_size['height']).astype(float)           # vT
         y_target['yB'] = (y_target['yB'] / self.img_size['height']).astype(float)           # vB
-        y_target['depth'] = (y_target['depth'] / 100.0).astype(float)                       # encode by max. 100 m
-        width = int(self.img_size['width'] / grid_step)
+        # inverted depth and scaled over 100 m
+        y_target['depth'] = 100.0 / (y_target['depth'] + epsilon)
+        width = int(self.img_size['width'] / 8)
+
         gt_lst = []
-        for _ in range(240):
+        for _ in range(width):
             gt_lst.append([])
         for index, stixel in y_target.iterrows():
             col = stixel['x']
@@ -71,12 +74,12 @@ class StixelData(Dataset):
             while len(col_list) != n_obj_preds:
                 col_list.append([0, 0, 0, 0])
         gt_mtx: np.array = np.array(gt_lst)
+        # e.g. w=240 x n=192 x a=4
         label = torch.from_numpy(gt_mtx).to(torch.float32)
-        # 240 x 15 x 4
-        label.permute(0, 2, 1)
+        label = rearrange(label, "w n a -> a n w")
         if self.model == "unet":
             # 15 x 4 x 240
-            return label.permute(1, 2, 0)
+            return rearrange(label, "a n w -> n a w")
         return label
 
 

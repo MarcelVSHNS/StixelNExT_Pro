@@ -1,5 +1,6 @@
-data_path: /home/marcel/workspace/datasets
-model: "unet"               # convnext
+data_path: /media/marcel/Data1/Datasets/waymo-od
+# convnext, convnext_pretrained, unet
+model: "convnext_pretrained"
 epochs: 5
 batch_size: 1
 learning_rate: 1.0e-05

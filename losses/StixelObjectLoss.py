@@ -39,11 +39,10 @@ class StixelLoss(nn.Module):
 class StixelObjectLoss(nn.Module):
     def __init__(self):
         super(StixelObjectLoss, self).__init__()
-        self.loss_fn = nn.MSELoss(reduction='mean')
+        self.loss_fn: nn.L1Loss = nn.L1Loss()
 
-    @staticmethod
-    def params() -> Dict[str, str]:
-        return {'loss': "MSE"}
+    def params(self) -> Dict[str, str]:
+        return {'loss': self.loss_fn.__class__.__name__}
 
     def forward(self, inputs, targets):
-        return self.loss_fn(inputs, targets)
+        return self.loss_fn(inputs, targets), []
