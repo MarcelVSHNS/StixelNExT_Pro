@@ -1,48 +1,29 @@
 from torch import nn
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Any
 import torch
 
 
-class StixelLoss(nn.Module):
-    # threshold means the threshold when (probab) a border is detected
-    def __init__(self, alpha=False, beta=False, gamma=False):
-        """Intersection over Union"""
-        super().__init__()
-        self.alpha = alpha
-        self.beta = beta
-        self.gamma = gamma
-        self.bce_loss = nn.BCELoss(reduction='mean')
+class WeightedLoss:
+    def __init__(self, loss_fn, factor):
+        self.loss_fn = loss_fn
+        self.factor = factor
 
-    def params(self) -> Dict[str, bool]:
-        return {'alpha': self.alpha, 'beta': self.beta, 'gamma': self.gamma}
-
-    def forward(self, inputs, targets):
-        loss_bce_occ = 0.0
-        loss_maximum_cuts_occ = 0.0
-        loss_bce_cut = 0.0
-        single_monitoring_dicts = []
-        if self.alpha:
-            loss_bce_occ = self.bce_loss(inputs[:, 0, :, :], targets[:, 0, :, :])
-            loss_bce_occ = self.alpha * loss_bce_occ
-            single_monitoring_dicts.append({'name': "bce_occupancy", 'value': loss_bce_occ})
-        if self.beta:
-            loss_maximum_cuts_occ = torch.mean(inputs[:, 0, :, :])
-            loss_maximum_cuts_occ = self.beta * loss_maximum_cuts_occ
-            single_monitoring_dicts.append({'name': "sum_occupancy", 'value': loss_maximum_cuts_occ})
-        if self.gamma:
-            loss_bce_cut = self.bce_loss(inputs[:, 1, :, :], targets[:, 1, :, :])
-            loss_bce_cut = self.alpha * loss_bce_cut
-            single_monitoring_dicts.append({'name': "bce_edges", 'value': loss_bce_cut})
-        return loss_bce_occ + loss_maximum_cuts_occ + loss_bce_cut, single_monitoring_dicts
+    def __call__(self, inputs, targets):
+        return self.factor * self.loss_fn(inputs, targets)
 
 
 class StixelObjectLoss(nn.Module):
-    def __init__(self):
+    def __init__(self, weights: Dict[str, float]):
         super(StixelObjectLoss, self).__init__()
-        self.loss_fn: nn.L1Loss = nn.L1Loss()
+        self.weights = weights
+        # BCE: probability loss
+        self.l_prob: WeightedLoss = WeightedLoss(nn.BCELoss(), self.weights["probability"])
+        # MSE: bottom point position loss + stixel/ object length loss
+        self.l_bot_pos: WeightedLoss = WeightedLoss(nn.MSELoss(), self.weights["bottom_pos"])
+        self.l_stixel_len: WeightedLoss = WeightedLoss(nn.MSELoss(), self.weights["obj_length"])
 
-    def params(self) -> Dict[str, str]:
-        return {'loss': self.loss_fn.__class__.__name__}
+    def params(self) -> Dict[str, Any]:
+        return self.weights
 
     def forward(self, inputs, targets):
-        return self.loss_fn(inputs, targets), []
+        return self.l_prob(inputs[:, 3, :, :], targets[:, 3, :, :]), []
