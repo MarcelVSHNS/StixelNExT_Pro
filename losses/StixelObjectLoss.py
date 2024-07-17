@@ -51,4 +51,4 @@ class StixelObjectLoss(nn.Module):
         depth_loss = self.regress_loss(inputs[:, 2, :, :], targets[:, 2, :, :]) * self.weights['depth']
         depth_length_ratio_loss = self.depth_length_ratio_loss_fn(inputs, targets) * self.weights['depth_length_ratio']
         # summarize all partial losses
-        return prob_loss + top_loss + bottom_loss + depth_loss + depth_length_ratio_loss, self.weights
+        return prob_loss + top_loss + bottom_loss + depth_loss + depth_length_ratio_loss

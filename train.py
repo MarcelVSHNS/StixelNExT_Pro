@@ -154,7 +154,6 @@ def train(rank, world_size):
 
 def main():
     world_size = torch.cuda.device_count()
-    world_size = 1
     print(f"Found {world_size} cuda devices.")
     mp.spawn(train, args=(world_size,), nprocs=world_size, join=True)
 
