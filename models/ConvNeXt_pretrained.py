@@ -7,19 +7,21 @@ import yaml
 
 
 class ConvNeXtHead(nn.Module):
-    def __init__(self, in_channels):
+    def __init__(self, in_channels, out_channels):
         super(ConvNeXtHead, self).__init__()
         self.up = nn.Upsample(size=(1, 240), mode='nearest')
-        self.identity = nn.Identity()
-        self.c = in_channels
+        self.channel_reduce = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=1)
+        self.out_channels = out_channels
+        self.activation = nn.Sigmoid()
 
     def forward(self, x):
         x = self.up(x)
-        assert self.c % 4 == 0, "NN depth does not match, adapt n_channels."
-        num_pred = self.c // 4
-        x = rearrange(x, 'b (a n) h w -> b a n h w', a=4, n=num_pred)
+        x = self.channel_reduce(x)
+        assert self.out_channels % 4 == 0, "NN depth does not match, adapt n_channels."
+        n_candidates = self.out_channels // 4
+        x = rearrange(x, 'b (a n) h w -> b a n h w', a=4, n=n_candidates)
         # output = reduce(output, 'b a n h w -> b a n w', 'mean')
-        return self.identity(x.squeeze(dim=3))
+        return self.activation(x.squeeze(dim=3))
 
 
 def convnext_stixel(weights: Optional[ConvNeXt_Tiny_Weights] = None, **kwargs: Any) -> Tuple[ConvNeXt, Dict[str, Any]]:
@@ -27,7 +29,8 @@ def convnext_stixel(weights: Optional[ConvNeXt_Tiny_Weights] = None, **kwargs: A
         config = yaml.load(file, Loader=yaml.FullLoader)
     c: int = config['widths_c']
     depths_b: List[int] = config['depths_b']
-    model_params = {'C': c, 'B': depths_b}
+    n_candidates: int = config['n_candidates']
+    model_params = {'C': c, 'B': depths_b, 'n_cand': n_candidates}
     if c == 96 and depths_b == [3, 3, 9, 3]:
         weights = ConvNeXt_Tiny_Weights.DEFAULT
         # weights = ConvNeXt_Tiny_Weights.verify(weights)
@@ -45,5 +48,5 @@ def convnext_stixel(weights: Optional[ConvNeXt_Tiny_Weights] = None, **kwargs: A
     stochastic_depth_prob = kwargs.pop("stochastic_depth_prob", 0.1)
     model = _convnext(block_setting, stochastic_depth_prob, weights, True, **kwargs)
     model.avgpool = nn.AvgPool2d(kernel_size=(40, 1), stride=(40, 1))
-    model.classifier = ConvNeXtHead(in_channels=c * 8)
+    model.classifier = ConvNeXtHead(in_channels=c * 8, out_channels=4 * n_candidates)
     return model, model_params
