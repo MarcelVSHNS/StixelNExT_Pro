@@ -15,7 +15,7 @@ import yaml
 # 0. Implementation of a Dataset
 class StixelData(Dataset):
     # 1. Implement __init()__
-    def __init__(self, data_dir: str, phase: str, model:  str, annotation_dir="targets", img_dir="STEREO_LEFT", transform=None,
+    def __init__(self, data_dir: str, phase: str, model:  str, annotation_dir="targets", img_dir="FRONT", transform=None,
                  target_transform=None, return_name=False):
         self.data_dir = os.path.join(data_dir, phase)
         with open(data_dir + '/dataset-config.yaml') as file:
@@ -52,7 +52,7 @@ class StixelData(Dataset):
         else:
             return feature_image, target_labels
 
-    def _preparation_of_target_label(self, y_target: pandas.DataFrame, epsilon=1e-6, n_obj_preds: int = 192) -> torch.tensor:
+    def _preparation_of_target_label(self, y_target: pandas.DataFrame, epsilon=1e-6, n_obj_preds: int = 12) -> torch.tensor:
         # img_path,x,yT,yB,class,depth: prepare data like normalization and scaling
         y_target['x'] = (y_target['x'] // 8).astype(int)                            # u as index
         y_target['yT'] = (y_target['yT'] / self.img_size['height']).astype(float)           # vT
@@ -74,7 +74,7 @@ class StixelData(Dataset):
             while len(col_list) != n_obj_preds:
                 col_list.append([0, 0, 0, 0])
         gt_mtx: np.array = np.array(gt_lst)
-        # e.g. w=240 x n=192 x a=4
+        # e.g. w=240 x n=12 x a=4
         label = torch.from_numpy(gt_mtx).to(torch.float32)
         label = rearrange(label, "w n a -> a n w")
         if self.model == "unet":

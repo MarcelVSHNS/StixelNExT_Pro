@@ -19,6 +19,8 @@ class StixelObjectLoss(nn.Module):
                 'depth': 1.0,
                 'depth_length_ratio': 1.0
             }
+        else:
+            self.weights = weights
         # BCE: probability loss
         self.class_loss: nn.BCELoss = nn.BCELoss()
         # MSE: bottom point position loss + stixel/ object length loss, ...
@@ -49,4 +51,4 @@ class StixelObjectLoss(nn.Module):
         depth_loss = self.regress_loss(inputs[:, 2, :, :], targets[:, 2, :, :]) * self.weights['depth']
         depth_length_ratio_loss = self.depth_length_ratio_loss_fn(inputs, targets) * self.weights['depth_length_ratio']
         # summarize all partial losses
-        return prob_loss + top_loss + bottom_loss + depth_loss + depth_length_ratio_loss
+        return prob_loss + top_loss + bottom_loss + depth_loss + depth_length_ratio_loss, self.weights
