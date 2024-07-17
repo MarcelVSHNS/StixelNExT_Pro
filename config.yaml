@@ -1,17 +1,17 @@
-data_path: /media/marcel/Data1/Datasets/waymo-od
+data_path: /pfs/data5/home/es/es_es/es_mavossh/workspace/datasets/waymo-od
 # convnext, convnext_pretrained, unet
 model: "convnext_pretrained"
-epochs: 5
-batch_size: 1
+epochs: 300
+batch_size: 4
 learning_rate: 1.0e-05
 load_checkpoint: null       # e.g. StixelNExT_Pro_volcanic-spaceship-170_epoch-31_test-error-0.2544909715652466.pth or null to not load a checkpoint
 logging: true               # Wandb
 early_stop:
-  tol: 8                    # tolerance
+  tol: 12                   # tolerance
   min_delta: 0.00001        # minimum improvement after {tolerance} iterations
 # loss weights
 P: 1.0
 h: 1.0
 vB: 1.0
 d: 1.0
-h_d_ratio: 1.0
+h_d_ratio: 2.0

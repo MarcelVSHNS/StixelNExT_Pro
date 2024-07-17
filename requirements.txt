@@ -1,11 +1,12 @@
 pandas
 numpy
-torch
-torchvision
+#torch
+#torchvision
 matplotlib
 wandb
 torchinfo
 pyyaml
 opencv-python
 Pillow
-optuna
+#optuna
+einops

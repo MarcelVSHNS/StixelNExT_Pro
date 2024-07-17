@@ -1,5 +1,6 @@
 import torch
-from torchvision.models.convnext import ConvNeXt
+# import torchvision.ops
+# from torchvision.models.convnext import ConvNeXt
 from models import convnext_stixel
 from torchinfo import summary
 from losses import StixelObjectLoss
@@ -10,7 +11,7 @@ from losses import StixelObjectLoss
 # model = ConvNeXt(in_channels=3, c=60, depths_b=[3, 3, 27, 3])
 model, _ = convnext_stixel()
 
-input_shape = (1, 3, 1280, 1920)
+input_shape = (4, 3, 1280, 1920)
 x = torch.randn(input_shape)
 output = model(x)
 
@@ -19,10 +20,12 @@ print(f"Output shape: {output.shape}")
 
 
 """ Loss exploration """
-inputs = torch.rand(1, 4, 12, 240)
+inputs = torch.rand(4, 4, 12, 240)
 loss_fn = StixelObjectLoss()
-print(f"Ident: {loss_fn(output, output)}")
-target = torch.rand(1, 4, 12, 240)
-print(f"Diff: {loss_fn(output, target)}")
+l1, _ = loss_fn(output, output)
+print(f"Ident: {l1}")
+target = torch.rand(4, 4, 12, 240)
+l2, _ = loss_fn(output, target)
+print(f"Diff: {l2}")
 
 

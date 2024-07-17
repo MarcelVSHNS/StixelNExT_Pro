@@ -36,7 +36,7 @@ def setup(rank, world_size):
     os.environ['MASTER_ADDR'] = 'localhost'
     os.environ['MASTER_PORT'] = '12355'
     # 'gloo' for CPUs, 'nccl' für CPUs
-    dist.init_process_group("gloo", rank=rank, world_size=world_size)
+    dist.init_process_group("nccl", rank=rank, world_size=world_size)
     torch.cuda.set_device(rank)
 
 
@@ -45,6 +45,7 @@ def cleanup():
 
 
 def train(rank, world_size):
+    torch.cuda.init() 
     setup(rank, world_size)
 
     """ 1.Load data """
@@ -153,6 +154,8 @@ def train(rank, world_size):
 
 def main():
     world_size = torch.cuda.device_count()
+    world_size = 1
+    print(f"Found {world_size} cuda devices.")
     mp.spawn(train, args=(world_size,), nprocs=world_size, join=True)
 
 
