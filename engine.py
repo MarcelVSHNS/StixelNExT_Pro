@@ -14,7 +14,7 @@ def train_one_epoch(dataloader, model, loss_fn, optimizer, device, writer=None) 
         # Compute prediction a prediction
         outputs = model(samples)
         # Compute the error (loss) of that prediction [loss_fn(prediction, target)]
-        loss, losses_monitoring = loss_fn(outputs, targets)
+        loss = loss_fn(outputs, targets)
         train_loss += loss.item()
         # Backpropagation strategy/ optimization "zero_grad()"
         optimizer.zero_grad()
@@ -24,8 +24,7 @@ def train_one_epoch(dataloader, model, loss_fn, optimizer, device, writer=None) 
         optimizer.step()
         if batch_idx % 100 == 0:
             loss, current = loss.item(), batch_idx * len(samples)
-            losses_output = " ".join([f"{loss_mon['name']}: {loss_mon['value']:>7f}," for loss_mon in losses_monitoring])
-            print(f"loss: {loss:>7f}  [{current:>5d}/{num_batches:>5d}], \t {losses_output}")
+            print(f"loss: {loss:>7f}  [{current:>5d}/{num_batches:>5d}], \t")
     train_loss /= num_batches
     if writer:
         # Log the average loss for the epoch
