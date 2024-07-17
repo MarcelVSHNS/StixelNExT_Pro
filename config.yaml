@@ -9,3 +9,9 @@ logging: true               # Wandb
 early_stop:
   tol: 8                    # tolerance
   min_delta: 0.00001        # minimum improvement after {tolerance} iterations
+# loss weights
+P: 1.0
+h: 1.0
+vB: 1.0
+d: 1.0
+h_d_ratio: 1.0

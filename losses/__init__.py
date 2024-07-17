@@ -1,1 +1,1 @@
-from .StixelObjectLoss import StixelLoss, StixelObjectLoss
+from .StixelObjectLoss import StixelObjectLoss
