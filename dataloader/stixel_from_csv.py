@@ -41,8 +41,9 @@ class StixelData(Dataset):
     def __getitem__(self, idx):
         img_path_full: str = os.path.join(self.img_path, self.sample_map[idx] + ".png")
         feature_image: torch.Tensor = read_image(img_path_full, ImageReadMode.RGB).to(torch.float32)
-        target_labels: pd.DataFrame = pd.read_csv(os.path.join(self.annotation_path, os.path.basename(self.sample_map[idx]) + ".csv"))
-        target_labels = self._preparation_of_target_label(target_labels)
+        # change to StixelWorld objects
+        stixel_label: StixelWorld = StixelWorld.read(os.path.join(self.annotation_path, os.path.basename(self.sample_map[idx]) + ".csv"))
+        target_labels = self._preparation_of_target_label(stixel_label)
         if self.transform:
             feature_image = self.transform(feature_image)
         if self.target_transform:
@@ -53,9 +54,10 @@ class StixelData(Dataset):
         else:
             return feature_image, target_labels
 
-    def _preparation_of_target_label(self, y_target: pandas.DataFrame, epsilon=1e-6, n_obj_preds: int = 12) -> torch.tensor:
+    def _preparation_of_target_label(self, y_target: StixelWorld, epsilon=1e-6, n_obj_preds: int = 12) -> torch.tensor:
         # img_path,x,yT,yB,class,depth: prepare data like normalization and scaling
-        y_target['x'] = (y_target['x'] // 8).astype(int)                            # u as index
+        # TODO: change to object access
+        y_target['x'] = (y_target['x'] // 8).astype(int)                                    # u as index
         y_target['yT'] = (y_target['yT'] / self.img_size['height']).astype(float)           # vT
         y_target['yB'] = (y_target['yB'] / self.img_size['height']).astype(float)           # vB
         # inverted depth and scaled over 100 m
