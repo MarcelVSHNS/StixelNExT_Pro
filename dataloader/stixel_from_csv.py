@@ -10,6 +10,7 @@ from typing import List, Tuple
 import cv2
 import torch.nn.functional as F
 import yaml
+from stixel import Stixel, StixelWorld
 
 
 # 0. Implementation of a Dataset
@@ -81,6 +82,29 @@ class StixelData(Dataset):
             # 15 x 4 x 240
             return rearrange(label, "a n w -> n a w")
         return label
+
+    @staticmethod
+    def revert(prediction: torch.Tensor, image_name: str = "", prob: float = 0.9) -> List[StixelWorld]:
+        """ extract stixel information from prediction """
+        pred_np = prediction.numpy()
+        stixel_world_batch = []
+        for batch in pred_np:
+            stixel_world = []
+            # print(f"Batch1: {batch.shape}")
+            columns = rearrange(batch, "a n w -> w n a")
+            for u in range(len(columns)):
+                # print(f"Col1: {column.shape}")
+                for candidate in columns[u]:
+                    # print(f"candidate1: {candidate.shape}")
+                    if candidate[3] >= prob:
+                        stixel = Stixel(u=u,
+                                        v_b=candidate[0],
+                                        v_t=candidate[1],
+                                        d=candidate[2],
+                                        prob=candidate[3])
+                        stixel_world.append(stixel)
+            stixel_world_batch.append(StixelWorld(stixel_world, img_name=image_name))
+        return stixel_world_batch
 
 
 def feature_transform_resize(x_features: torch.Tensor, target_size: Tuple[int, int]) -> torch.Tensor:
