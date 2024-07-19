@@ -1,5 +1,4 @@
 import yaml
-
 # 0.1 Load configfile
 with open('config.yaml') as yamlfile:
     config = yaml.load(yamlfile, Loader=yaml.FullLoader)
@@ -50,12 +49,12 @@ def train(rank, world_size):
 
     """ 1.Load data """
     # Training data
-    training_data = StixelData(data_dir=config['data_path'], phase='testing', model=config['model'])
+    training_data = StixelData(data_dir=config['data_path'], phase='training', model=config['model'])
     training_sampler = DistributedSampler(training_data, num_replicas=world_size, rank=rank)
     train_dataloader = DataLoader(training_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True,
                                   sampler=training_sampler)
     # Validation data
-    validation_data = StixelData(data_dir=config['data_path'], phase='testing', model=config['model'])
+    validation_data = StixelData(data_dir=config['data_path'], phase='validation', model=config['model'])
     validation_sampler = DistributedSampler(training_data, num_replicas=world_size, rank=rank)
     val_dataloader = DataLoader(validation_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True,
                                 sampler=validation_sampler)

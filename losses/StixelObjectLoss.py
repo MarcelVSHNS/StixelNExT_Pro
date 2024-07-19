@@ -45,6 +45,7 @@ class StixelObjectLoss(nn.Module):
         return self.regress_loss(ratio_in, ratio_targ)
 
     def forward(self, inputs, targets):
+        # currently no matching is implemented, double loss as possible strategy
         prob_loss = self.class_loss(inputs[:, 3, :, :], targets[:, 3, :, :]) * self.weights['prob']
         bottom_loss = self.regress_loss(inputs[:, 0, :, :], targets[:, 0, :, :]) * self.weights['bottom']
         top_loss = self.regress_loss(inputs[:, 1, :, :], targets[:, 1, :, :]) * self.weights['obj_length']
