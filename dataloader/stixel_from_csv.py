@@ -6,7 +6,7 @@ from torch.utils.data import Dataset
 from torchvision.io import read_image, ImageReadMode
 from einops import rearrange
 import numpy as np
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 import cv2
 import torch.nn.functional as F
 import yaml
@@ -41,8 +41,9 @@ class StixelData(Dataset):
     def __getitem__(self, idx):
         img_path_full: str = os.path.join(self.img_path, self.sample_map[idx] + ".png")
         feature_image: torch.Tensor = read_image(img_path_full, ImageReadMode.RGB).to(torch.float32)
-        target_labels: pd.DataFrame = pd.read_csv(os.path.join(self.annotation_path, os.path.basename(self.sample_map[idx]) + ".csv"))
-        target_labels = self._preparation_of_target_label(target_labels)
+        # change to StixelWorld objects
+        stixel_label: StixelWorld = StixelWorld.read(os.path.join(self.annotation_path, os.path.basename(self.sample_map[idx]) + ".csv"))
+        target_labels = self._preparation_of_target_label(stixel_label)
         if self.transform:
             feature_image = self.transform(feature_image)
         if self.target_transform:
@@ -53,26 +54,29 @@ class StixelData(Dataset):
         else:
             return feature_image, target_labels
 
-    def _preparation_of_target_label(self, y_target: pandas.DataFrame, epsilon=1e-6, n_obj_preds: int = 12) -> torch.tensor:
-        # img_path,x,yT,yB,class,depth: prepare data like normalization and scaling
-        y_target['x'] = (y_target['x'] // 8).astype(int)                            # u as index
-        y_target['yT'] = (y_target['yT'] / self.img_size['height']).astype(float)           # vT
-        y_target['yB'] = (y_target['yB'] / self.img_size['height']).astype(float)           # vB
-        # inverted depth and scaled over 100 m
-        y_target['depth'] = 100.0 / (y_target['depth'] + epsilon)
-        width = int(self.img_size['width'] / 8)
+    def _preparation_of_target_label(self, y_target: StixelWorld, n_obj_preds: int = 12, u_scale: int = 8,
+                                     d_scale: float = 100.0) -> torch.tensor:
+        # prepare data, like normalization and scaling
+        width = self.img_size['width'] // u_scale
 
         gt_lst = []
         for _ in range(width):
             gt_lst.append([])
-        for index, stixel in y_target.iterrows():
-            col = stixel['x']
+        for stixel in y_target.stixel:
+            col = stixel.u // u_scale
             # encoding: bottom point vB, top point vT, distance d, probability P
             if len(gt_lst[col]) < n_obj_preds:
-                gt_lst[col].append([stixel['yB'], stixel['yT'], stixel['depth'], 1])
+                # inv_depth = 1 - stixel.d / d_scale
+                inverted_d = 1 - stixel.d / d_scale
+                # Object attributes: vB, vT, d⁻¹, p
+                gt_lst[col].append([stixel.vB / self.img_size['height'],
+                                    stixel.vT / self.img_size['height'],
+                                    inverted_d,
+                                    1])
         # fill cols with zeros
         for col_list in gt_lst:
             while len(col_list) != n_obj_preds:
+                # fill with 0, other strategies like repeating is possible
                 col_list.append([0, 0, 0, 0])
         gt_mtx: np.array = np.array(gt_lst)
         # e.g. w=240 x n=12 x a=4
@@ -84,11 +88,13 @@ class StixelData(Dataset):
         return label
 
     @staticmethod
-    def revert(prediction: torch.Tensor, image_name: str = "", prob: float = 0.9) -> List[StixelWorld]:
+    def revert(prediction: torch.Tensor, img_name: List[str] = [""], prob: float = 0.9,
+               img_size: Dict[str, int] = {'height': 1280, 'width': 1920}, u_scale: int = 8,
+               d_scale: float = 100.0) -> List[StixelWorld]:
         """ extract stixel information from prediction """
         pred_np = prediction.numpy()
         stixel_world_batch = []
-        for batch in pred_np:
+        for batch, name in zip(pred_np, img_name):
             stixel_world = []
             # print(f"Batch1: {batch.shape}")
             columns = rearrange(batch, "a n w -> w n a")
@@ -97,13 +103,14 @@ class StixelData(Dataset):
                 for candidate in columns[u]:
                     # print(f"candidate1: {candidate.shape}")
                     if candidate[3] >= prob:
-                        stixel = Stixel(u=u,
-                                        v_b=candidate[0],
-                                        v_t=candidate[1],
-                                        d=candidate[2],
+                        stixel = Stixel(u=int(u * u_scale),
+                                        v_b=int(candidate[0] * img_size['height']),
+                                        v_t=int(candidate[1] * img_size['height']),
+                                        d=(1 - candidate[2]) * d_scale,
                                         prob=candidate[3])
+                        # depth = 1 - stixel.d / d_scale
                         stixel_world.append(stixel)
-            stixel_world_batch.append(StixelWorld(stixel_world, img_name=image_name))
+            stixel_world_batch.append(StixelWorld(stixel_world, img_name=name))
         return stixel_world_batch
 
 
