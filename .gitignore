@@ -164,3 +164,5 @@ config.yaml
 utils/sample
 test.py
 /wandb/
+/best_models/
+*.pth
