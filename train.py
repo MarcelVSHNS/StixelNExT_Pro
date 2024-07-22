@@ -55,7 +55,7 @@ def train(rank, world_size):
                                   sampler=training_sampler)
     # Validation data
     validation_data = StixelData(data_dir=config['data_path'], phase='validation', model=config['model'])
-    validation_sampler = DistributedSampler(training_data, num_replicas=world_size, rank=rank)
+    validation_sampler = DistributedSampler(validation_data, num_replicas=world_size, rank=rank)
     val_dataloader = DataLoader(validation_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True,
                                 sampler=validation_sampler)
 
