@@ -11,6 +11,7 @@ import cv2
 import torch.nn.functional as F
 import yaml
 from stixel import Stixel, StixelWorld
+import time
 
 
 # 0. Implementation of a Dataset
@@ -41,9 +42,9 @@ class StixelData(Dataset):
     def __getitem__(self, idx):
         img_path_full: str = os.path.join(self.img_path, self.sample_map[idx] + ".png")
         feature_image: torch.Tensor = read_image(img_path_full, ImageReadMode.RGB).to(torch.float32)
-        # change to StixelWorld objects
-        stixel_label: StixelWorld = StixelWorld.read(os.path.join(self.annotation_path, os.path.basename(self.sample_map[idx]) + ".csv"))
-        target_labels = self._preparation_of_target_label(stixel_label)
+        target_labels: pd.DataFrame = pd.read_csv(os.path.join(self.annotation_path,
+                                                               os.path.basename(self.sample_map[idx]) + ".csv"))
+        target_labels = self._preparation_of_target_label(target_labels)
         if self.transform:
             feature_image = self.transform(feature_image)
         if self.target_transform:
@@ -54,29 +55,28 @@ class StixelData(Dataset):
         else:
             return feature_image, target_labels
 
-    def _preparation_of_target_label(self, y_target: StixelWorld, n_obj_preds: int = 12, u_scale: int = 8,
+    def _preparation_of_target_label(self, y_target: pandas.DataFrame, n_obj_preds: int = 12, u_scale: int = 8,
                                      d_scale: float = 100.0) -> torch.tensor:
-        # prepare data, like normalization and scaling
-        width = self.img_size['width'] // u_scale
+        # img_path,x,yT,yB,class,depth: prepare data like normalization and scaling
+        # Attention: dataset version 1.0! not 1.1
+        y_target['x'] = (y_target['x'] // u_scale).astype(int)                              # u as index
+        y_target['yT'] = (y_target['yT'] / self.img_size['height']).astype(float)           # vT
+        y_target['yB'] = (y_target['yB'] / self.img_size['height']).astype(float)           # vB
+        # inverted depth and scaled over 100 m
+        y_target['depth'] = 1 - y_target['depth'] / d_scale
+        width = int(self.img_size['width'] / u_scale)
 
         gt_lst = []
         for _ in range(width):
             gt_lst.append([])
-        for stixel in y_target.stixel:
-            col = stixel.u // u_scale
+        for index, stixel in y_target.iterrows():
+            col = stixel['x']
             # encoding: bottom point vB, top point vT, distance d, probability P
             if len(gt_lst[col]) < n_obj_preds:
-                # inv_depth = 1 - stixel.d / d_scale
-                inverted_d = 1 - stixel.d / d_scale
-                # Object attributes: vB, vT, d⁻¹, p
-                gt_lst[col].append([stixel.vB / self.img_size['height'],
-                                    stixel.vT / self.img_size['height'],
-                                    inverted_d,
-                                    1])
+                gt_lst[col].append([stixel['yB'], stixel['yT'], stixel['depth'], 1])
         # fill cols with zeros
         for col_list in gt_lst:
             while len(col_list) != n_obj_preds:
-                # fill with 0, other strategies like repeating is possible
                 col_list.append([0, 0, 0, 0])
         gt_mtx: np.array = np.array(gt_lst)
         # e.g. w=240 x n=12 x a=4

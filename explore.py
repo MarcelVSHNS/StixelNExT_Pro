@@ -15,18 +15,19 @@ from torch.utils.data import DataLoader
 from PIL import Image
 from stixel import StixelWorld
 from stixel.utils import draw_stixels_on_image
+from einops import rearrange
+import time
 
 
 def main():
-    # Training data
-    training_data = StixelData(data_dir=config['data_path'], phase='testing', model=config['model'], return_name=True)
-    train_dataloader = DataLoader(training_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True)
+    testing_data = StixelData(data_dir=config['data_path'], phase='testing', model=config['model'], return_name=True)
+    testing_dataloader = DataLoader(testing_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True)
 
-    img_tensor, target_tensor, name = next(iter(train_dataloader))
+    img_tensor, target_tensor, name = next(iter(testing_dataloader))
     """ Data exploration """
     stixel_world_batch = StixelData.revert(target_tensor,
                                            img_name=name,
-                                           img_size=training_data.img_size)
+                                           img_size=testing_data.img_size)
     stixel_world: StixelWorld = stixel_world_batch[0]
     image_path = os.path.join(config['data_path'], 'testing', 'FRONT', stixel_world.image_name + '.png')
     image: Image = Image.open(image_path)
