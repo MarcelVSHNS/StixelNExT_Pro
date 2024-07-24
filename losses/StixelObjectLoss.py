@@ -14,11 +14,11 @@ class StixelObjectLoss(nn.Module):
         super(StixelObjectLoss, self).__init__()
         if weights is None:
             self.weights = {
-                'prob': 1.0,
-                'obj_length': 1.0,
-                'bottom': 1.0,
-                'depth': 1.0,
-                'depth_length_ratio': 1.0
+                'P': 1.0,
+                'vT': 1.0,
+                'vB': 1.0,
+                'd': 1.0,
+                'h_d_ratio': 1.0
             }
         else:
             self.weights = weights
@@ -49,15 +49,14 @@ class StixelObjectLoss(nn.Module):
         return self.regress_loss(ratio_in, ratio_targ)
 
     def bottom_point_depth_relation(self, inputs, targets):
-        
         pass
 
     def forward(self, inputs, targets):
         # currently no matching is implemented, double loss as possible strategy
-        prob_loss = self.classify_loss(inputs[:, 3, :, :], targets[:, 3, :, :], reduction="mean") * self.weights['prob']
-        bottom_loss = self.regress_loss(inputs[:, 0, :, :], targets[:, 0, :, :]) * self.weights['bottom']
-        top_loss = self.regress_loss(inputs[:, 1, :, :], targets[:, 1, :, :]) * self.weights['obj_length']
-        depth_loss = self.regress_loss(inputs[:, 2, :, :], targets[:, 2, :, :]) * self.weights['depth']
-        depth_length_ratio_loss = self.depth_length_ratio_loss_fn(inputs, targets) * self.weights['depth_length_ratio']
+        prob_loss = self.classify_loss(inputs[:, 3, :, :], targets[:, 3, :, :], reduction="mean") * self.weights['P']
+        bottom_loss = self.regress_loss(inputs[:, 0, :, :], targets[:, 0, :, :]) * self.weights['vB']
+        top_loss = self.regress_loss(inputs[:, 1, :, :], targets[:, 1, :, :]) * self.weights['vT']
+        depth_loss = self.regress_loss(inputs[:, 2, :, :], targets[:, 2, :, :]) * self.weights['d']
+        # depth_length_ratio_loss = self.depth_length_ratio_loss_fn(inputs, targets) * self.weights['depth_length_ratio']
         # summarize all partial losses
-        return prob_loss + top_loss + bottom_loss + depth_loss + depth_length_ratio_loss
+        return prob_loss + top_loss + bottom_loss + depth_loss # + depth_length_ratio_loss
