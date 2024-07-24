@@ -2,4 +2,4 @@ widths_c: 96
 depths_b: [3, 3, 9, 3]
 stem_features: 64
 # number of possible objects per column
-n_candidates: 12
+n_candidates: 48

@@ -20,20 +20,20 @@ import time
 
 
 def main():
-    testing_data = StixelData(data_dir=config['data_path'], phase='testing', model=config['model'], return_name=True)
-    testing_dataloader = DataLoader(testing_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True)
+    testing_data = StixelData(data_dir=config['data_path'], phase='validation', model=config['model'], return_name=True)
+    testing_dataloader = DataLoader(testing_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True, shuffle=True)
 
     img_tensor, target_tensor, name = next(iter(testing_dataloader))
     """ Data exploration """
-    stixel_world_batch = StixelData.revert(target_tensor,
+    stixel_world_batch = StixelData.revert(target_tensor, testing_data.depth_anchors,
                                            img_name=name,
                                            img_size=testing_data.img_size)
     stixel_world: StixelWorld = stixel_world_batch[0]
-    image_path = os.path.join(config['data_path'], 'testing', 'FRONT', stixel_world.image_name + '.png')
+    image_path = os.path.join(config['data_path'], 'validation', 'FRONT', stixel_world.image_name + '.png')
     image: Image = Image.open(image_path)
-    stixel_img = draw_stixels_on_image(image, stixel_world.stixel)
+    stixel_img = draw_stixels_on_image(image, stixel_world.stixel,)
     stixel_img.show()
-    """ Model exploration """
+    """ Model exploration 
     # model = UNet(n_channels=3)
     # model = ConvNeXt(in_channels=3, c=60, depths_b=[3, 3, 27, 3])
     model, _ = convnext_stixel()
@@ -42,16 +42,16 @@ def main():
     x = torch.randn(input_shape)
     output = model(x)
     summary(model, input_size=input_shape, device=torch.device('cpu'))
-    print(f"Output shape: {output.shape}")
+    print(f"Output shape: {output.shape}")"""
 
-    """ Loss exploration """
+    """ Loss exploration 
     inputs = torch.rand(4, 4, 12, 240)
     loss_fn = StixelObjectLoss()
     l1, _ = loss_fn(output, output)
     print(f"Ident: {l1}")
     target = torch.rand(4, 4, 12, 240)
     l2, _ = loss_fn(output, target)
-    print(f"Diff: {l2}")
+    print(f"Diff: {l2}")"""
 
 
 if __name__ == '__main__':
