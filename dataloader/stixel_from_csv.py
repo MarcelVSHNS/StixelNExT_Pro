@@ -17,13 +17,14 @@ import time
 # 0. Implementation of a Dataset
 class StixelData(Dataset):
     # 1. Implement __init()__
-    def __init__(self, data_dir: str, phase: str, model:  str, annotation_dir="targets", img_dir="FRONT", transform=None,
+    def __init__(self, data_dir: str, phase: str, model:  str, annotation_dir="Stixel", img_dir="FRONT", transform=None,
                  target_transform=None, return_name=False):
         self.data_dir = os.path.join(data_dir, phase)
         with open(data_dir + '/dataset-config.yaml') as file:
             config = yaml.load(file, Loader=yaml.FullLoader)
             self.name = config['name']
             self.img_size = {'height': int(config['img_height']), 'width': int(config['img_width'])}
+        self.depth_anchors = pd.read_csv(os.path.join(self.data_dir, "depth_anchors.csv"), index_col=0)
         self.img_path = os.path.join(self.data_dir, img_dir)
         self.annotation_path = os.path.join(self.data_dir, annotation_dir)
         filenames: List[str] = os.listdir(os.path.join(self.data_dir, img_dir))
@@ -44,7 +45,7 @@ class StixelData(Dataset):
         feature_image: torch.Tensor = read_image(img_path_full, ImageReadMode.RGB).to(torch.float32)
         target_labels: pd.DataFrame = pd.read_csv(os.path.join(self.annotation_path,
                                                                os.path.basename(self.sample_map[idx]) + ".csv"))
-        target_labels = self._preparation_of_target_label(target_labels)
+        target_labels = self._preparation_of_target_label(target_labels, n_obj_preds=self.depth_anchors.shape[0])
         if self.transform:
             feature_image = self.transform(feature_image)
         if self.target_transform:
@@ -56,31 +57,31 @@ class StixelData(Dataset):
             return feature_image, target_labels
 
     def _preparation_of_target_label(self, y_target: pandas.DataFrame, n_obj_preds: int = 12, u_scale: int = 8,
-                                     d_scale: float = 100.0) -> torch.tensor:
+                                     d_scale: float = 50.0, shadowing: bool = True) -> torch.tensor:
+        d_scale = d_scale * 0.1
         # img_path,x,yT,yB,class,depth: prepare data like normalization and scaling
-        # Attention: dataset version 1.0! not 1.1
-        y_target['x'] = (y_target['x'] // u_scale).astype(int)                              # u as index
-        y_target['yT'] = (y_target['yT'] / self.img_size['height']).astype(float)           # vT
-        y_target['yB'] = (y_target['yB'] / self.img_size['height']).astype(float)           # vB
+        y_target['u'] = (y_target['u'] // u_scale).astype(int)                              # u as index
+        y_target['vT'] = (y_target['vT'] / self.img_size['height']).astype(float)           # vT
+        y_target['vB'] = (y_target['vB'] / self.img_size['height']).astype(float)           # vB
         # inverted depth and scaled over 100 m
-        y_target['depth'] = 1 - y_target['depth'] / d_scale
+        # y_target['d'] = 1 - y_target['d'] / d_scale
         width = int(self.img_size['width'] / u_scale)
 
-        gt_lst = []
-        for _ in range(width):
-            gt_lst.append([])
+        gt_stx_mtx = np.zeros((width, n_obj_preds, 4))
         for index, stixel in y_target.iterrows():
-            col = stixel['x']
+            col = stixel['u']
+            anchor, anchor_idx = find_nearest_depth(self.depth_anchors[f'{col}'], stixel['d'])
+            anchor_depth = (stixel['d'] - anchor) / d_scale
             # encoding: bottom point vB, top point vT, distance d, probability P
-            if len(gt_lst[col]) < n_obj_preds:
-                gt_lst[col].append([stixel['yB'], stixel['yT'], stixel['depth'], 1])
-        # fill cols with zeros
-        for col_list in gt_lst:
-            while len(col_list) != n_obj_preds:
-                col_list.append([0, 0, 0, 0])
-        gt_mtx: np.array = np.array(gt_lst)
+            gt_stx_mtx[col][anchor_idx] = [stixel['vB'], stixel['vT'], anchor_depth, 1]
+            # adds a negative shadow to every entry (2 times) and set the probability accordingly
+            if shadowing and anchor_idx >= 2 and gt_stx_mtx[col][anchor_idx - 1][3] == 0.0:
+                anchor_depth_1 = (stixel['d'] - self.depth_anchors[f'{col}'][anchor_idx - 1]) / d_scale
+                gt_stx_mtx[col][anchor_idx - 1] = [stixel['vB'], stixel['vT'], anchor_depth_1, 0.66]
+                anchor_depth_2 = (stixel['d'] - self.depth_anchors[f'{col}'][anchor_idx - 2]) / d_scale
+                gt_stx_mtx[col][anchor_idx - 2] = [stixel['vB'], stixel['vT'], anchor_depth_2, 0.25]
         # e.g. w=240 x n=12 x a=4
-        label = torch.from_numpy(gt_mtx).to(torch.float32)
+        label = torch.from_numpy(gt_stx_mtx).to(torch.float32)
         label = rearrange(label, "w n a -> a n w")
         if self.model == "unet":
             # 15 x 4 x 240
@@ -88,30 +89,45 @@ class StixelData(Dataset):
         return label
 
     @staticmethod
-    def revert(prediction: torch.Tensor, img_name: List[str] = [""], prob: float = 0.9,
+    def revert(prediction: torch.Tensor, anchors: pd.DataFrame, img_name: List[str] = [""], prob: float = 0.9,
                img_size: Dict[str, int] = {'height': 1280, 'width': 1920}, u_scale: int = 8,
-               d_scale: float = 100.0) -> List[StixelWorld]:
+               d_scale: float = 50.0) -> List[StixelWorld]:
         """ extract stixel information from prediction """
+        d_scale = d_scale * 0.1
         pred_np = prediction.numpy()
         stixel_world_batch = []
         for batch, name in zip(pred_np, img_name):
             stixel_world = []
             # print(f"Batch1: {batch.shape}")
-            columns = rearrange(batch, "a n w -> w n a")
+            columns = rearrange(batch, "a n u -> u n a")
             for u in range(len(columns)):
                 # print(f"Col1: {column.shape}")
-                for candidate in columns[u]:
+                for n in range(len(columns[u])):
                     # print(f"candidate1: {candidate.shape}")
-                    if candidate[3] >= prob:
+                    if columns[u][n][3] >= prob:
                         stixel = Stixel(u=int(u * u_scale),
-                                        v_b=int(candidate[0] * img_size['height']),
-                                        v_t=int(candidate[1] * img_size['height']),
-                                        d=(1 - candidate[2]) * d_scale,
-                                        prob=candidate[3])
+                                        v_b=int(columns[u][n][0] * img_size['height']),
+                                        v_t=int(columns[u][n][1] * img_size['height']),
+                                        d=columns[u][n][2] * d_scale + anchors[f'{u}'][n],
+                                        prob=columns[u][n][3])
                         # depth = 1 - stixel.d / d_scale
                         stixel_world.append(stixel)
             stixel_world_batch.append(StixelWorld(stixel_world, img_name=name))
         return stixel_world_batch
+
+
+def find_nearest_depth(column_anchors: pd.DataFrame, depth):
+    # Filter the column to get only values smaller or equal to the given value
+    filtered_column = column_anchors[column_anchors <= depth]
+    # If no such values exist, return the min val
+    if filtered_column.empty:
+        return depth, 0
+    diff = (column_anchors - depth).abs()
+    # Find the index of the minimum difference
+    idx = diff.idxmin()
+    # Get the nearest value using the index
+    nearest_value = column_anchors.loc[idx]
+    return nearest_value, idx
 
 
 def feature_transform_resize(x_features: torch.Tensor, target_size: Tuple[int, int]) -> torch.Tensor:
