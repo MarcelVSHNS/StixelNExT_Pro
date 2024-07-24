@@ -76,13 +76,7 @@ def train(rank, world_size):
 
     """ 3.Loss function & Training functions """
     # Loss function
-    loss_weights = {
-        'prob': config['P'],
-        'obj_length': config['h'],
-        'bottom': config['vB'],
-        'depth': config['d'],
-        'depth_length_ratio': config['h_d_ratio']
-    }
+    loss_weights = config['loss_w']
     loss_fn = StixelObjectLoss(loss_weights)
 
     # Optimizer definition
