@@ -44,14 +44,15 @@ def main():
     summary(model, input_size=input_shape, device=torch.device('cpu'))
     print(f"Output shape: {output.shape}")"""
 
-    """ Loss exploration 
-    inputs = torch.rand(4, 4, 12, 240)
-    loss_fn = StixelObjectLoss()
-    l1, _ = loss_fn(output, output)
+    """ Loss exploration """
+    inputs = torch.rand(4, 4, 48, 240)
+    loss_fn = StixelObjectLoss(weights=config['loss_w'])
+    l1 = loss_fn(inputs, inputs)
+    print(loss_fn.params())
     print(f"Ident: {l1}")
-    target = torch.rand(4, 4, 12, 240)
-    l2, _ = loss_fn(output, target)
-    print(f"Diff: {l2}")"""
+    target = torch.rand(4, 4, 48, 240)
+    l2 = loss_fn(inputs, target)
+    print(f"Diff: {l2}")
 
 
 if __name__ == '__main__':
