@@ -15,7 +15,7 @@ class ConvNeXtHead(nn.Module):
         self.activation = nn.Sigmoid()
 
     def forward(self, x):
-        #x = self.up(x)
+        x = self.up(x)
         x = self.channel_reduce(x)
         assert self.out_channels % 4 == 0, "NN depth does not match, adapt n_channels."
         n_candidates = self.out_channels // 4
