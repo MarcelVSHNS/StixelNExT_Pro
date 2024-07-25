@@ -6,7 +6,7 @@ from torch.utils.data import Dataset
 from torchvision.io import read_image, ImageReadMode
 from einops import rearrange
 import numpy as np
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Optional
 import cv2
 import torch.nn.functional as F
 import yaml
@@ -17,20 +17,22 @@ import time
 # 0. Implementation of a Dataset
 class StixelData(Dataset):
     # 1. Implement __init()__
-    def __init__(self, data_dir: str, phase: str, model:  str, annotation_dir="Stixel", img_dir="FRONT", transform=None,
-                 target_transform=None, return_name=False):
+    def __init__(self, data_dir: str, phase: str, model:  str, annotation_dir="Stixel", img_dir="FRONT",
+                 bin_dir="targets", transform=None, target_transform=None, return_name=False, read_from_bin=False):
         self.data_dir = os.path.join(data_dir, phase)
         with open(data_dir + '/dataset-config.yaml') as file:
             config = yaml.load(file, Loader=yaml.FullLoader)
             self.name = config['name']
             self.img_size = {'height': int(config['img_height']), 'width': int(config['img_width'])}
-        self.depth_anchors = pd.read_csv(os.path.join(self.data_dir, "depth_anchors.csv"), index_col=0)
+        self.depth_anchors = pd.read_csv(os.path.join(data_dir, "depth_anchors.csv"), index_col=0)
         self.img_path = os.path.join(self.data_dir, img_dir)
         self.annotation_path = os.path.join(self.data_dir, annotation_dir)
+        self.bin_dir = os.path.join(self.data_dir, bin_dir)
         filenames: List[str] = os.listdir(os.path.join(self.data_dir, img_dir))
         self.sample_map: List[str] = [os.path.splitext(filename)[0] for filename in filenames]
         self.transform = transform
         self.return_name: bool = return_name
+        self.read_from_bin: bool = read_from_bin
         self.model = model
         self.target_transform = target_transform
         self.name: str = os.path.basename(data_dir)
@@ -43,9 +45,14 @@ class StixelData(Dataset):
     def __getitem__(self, idx):
         img_path_full: str = os.path.join(self.img_path, self.sample_map[idx] + ".png")
         feature_image: torch.Tensor = read_image(img_path_full, ImageReadMode.RGB).to(torch.float32)
-        target_labels: pd.DataFrame = pd.read_csv(os.path.join(self.annotation_path,
-                                                               os.path.basename(self.sample_map[idx]) + ".csv"))
-        target_labels = self._preparation_of_target_label(target_labels, n_obj_preds=self.depth_anchors.shape[0])
+        if self.read_from_bin:
+            with open(os.path.join(self.bin_dir, f"{self.sample_map[idx]}.stxlnxt"), "rb") as f:
+                bytes_data = f.read()
+                target_labels = np.frombuffer(bytes_data, dtype=np.float64).reshape(4, self.depth_anchors.shape[0], 240)
+            target_labels = torch.from_numpy(target_labels.copy()).to(torch.float32)
+        else:
+            target_labels = pd.read_csv(os.path.join(self.annotation_path, os.path.basename(self.sample_map[idx]) + ".csv"))
+            target_labels = self._preparation_of_target_label(target_labels, n_obj_preds=self.depth_anchors.shape[0])
         if self.transform:
             feature_image = self.transform(feature_image)
         if self.target_transform:
