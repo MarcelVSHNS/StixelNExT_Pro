@@ -166,3 +166,4 @@ test.py
 /wandb/
 /best_models/
 *.pth
+results
