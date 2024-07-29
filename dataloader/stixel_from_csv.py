@@ -22,7 +22,7 @@ class StixelData(Dataset):
         self.data_dir = os.path.join(data_dir, phase)
         with open(data_dir + '/dataset-config.yaml') as file:
             config = yaml.load(file, Loader=yaml.FullLoader)
-            self.name = config['name']
+            self.name: str = f"{os.path.basename(config['name'])}.{phase}"
             self.img_size = {'height': int(config['img_height']), 'width': int(config['img_width'])}
         self.depth_anchors = pd.read_csv(os.path.join(data_dir, "depth_anchors.csv"), index_col=0)
         self.img_path = os.path.join(self.data_dir, img_dir)
@@ -35,7 +35,6 @@ class StixelData(Dataset):
         self.read_from_bin: bool = read_from_bin
         self.model = model
         self.target_transform = target_transform
-        self.name: str = f"{os.path.basename(data_dir)}.{phase}"
 
     # 2. Implement __len()__
     def __len__(self) -> int:
