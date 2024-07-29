@@ -35,7 +35,7 @@ class StixelData(Dataset):
         self.read_from_bin: bool = read_from_bin
         self.model = model
         self.target_transform = target_transform
-        self.name: str = os.path.basename(data_dir)
+        self.name: str = f"{os.path.basename(data_dir)}.{phase}"
 
     # 2. Implement __len()__
     def __len__(self) -> int:
@@ -63,8 +63,8 @@ class StixelData(Dataset):
         else:
             return feature_image, target_labels
 
-    def _preparation_of_target_label(self, y_target: pandas.DataFrame, n_obj_preds: int = 12, u_scale: int = 8,
-                                     d_scale: float = 50.0, shadowing: bool = True) -> torch.tensor:
+    def _preparation_of_target_label(self, y_target: pandas.DataFrame, n_obj_preds: int = 12, i_attr: int = 3,
+                                     u_scale: int = 8, d_scale: float = 50.0, shadowing: bool = True) -> torch.tensor:
         d_scale = d_scale * 0.1
         # img_path,x,yT,yB,class,depth: prepare data like normalization and scaling
         y_target['u'] = (y_target['u'] // u_scale).astype(int)                              # u as index
@@ -74,31 +74,36 @@ class StixelData(Dataset):
         # y_target['d'] = 1 - y_target['d'] / d_scale
         width = int(self.img_size['width'] / u_scale)
 
-        gt_stx_mtx = np.zeros((width, n_obj_preds, 4))
+        gt_stx_mtx = np.zeros((width, n_obj_preds, i_attr))
         for index, stixel in y_target.iterrows():
             col = stixel['u']
             anchor, anchor_idx = find_nearest_depth(self.depth_anchors[f'{col}'], stixel['d'])
-            anchor_depth = (stixel['d'] - anchor) / d_scale
             # encoding: bottom point vB, top point vT, distance d, probability P
-            gt_stx_mtx[col][anchor_idx] = [stixel['vB'], stixel['vT'], anchor_depth, 1]
-            # adds a negative shadow to every entry (2 times) and set the probability accordingly
-            if shadowing and anchor_idx >= 2 and gt_stx_mtx[col][anchor_idx - 1][3] == 0.0:
-                anchor_depth_1 = (stixel['d'] - self.depth_anchors[f'{col}'][anchor_idx - 1]) / d_scale
-                gt_stx_mtx[col][anchor_idx - 1] = [stixel['vB'], stixel['vT'], anchor_depth_1, 0.66]
-                anchor_depth_2 = (stixel['d'] - self.depth_anchors[f'{col}'][anchor_idx - 2]) / d_scale
-                gt_stx_mtx[col][anchor_idx - 2] = [stixel['vB'], stixel['vT'], anchor_depth_2, 0.25]
+            if i_attr == 4:
+                anchor_depth = (stixel['d'] - anchor) / d_scale
+                gt_stx_mtx[col][anchor_idx] = [stixel['vB'], stixel['vT'], anchor_depth, 1.0]
+                # adds a negative shadow to every entry (2 times) and set the probability accordingly
+                if shadowing and anchor_idx >= 2 and gt_stx_mtx[col][anchor_idx - 1][3] == 0.0:
+                    anchor_depth_1 = (stixel['d'] - self.depth_anchors[f'{col}'][anchor_idx - 1]) / d_scale
+                    gt_stx_mtx[col][anchor_idx - 1] = [stixel['vB'], stixel['vT'], anchor_depth_1, 0.66]
+                    anchor_depth_2 = (stixel['d'] - self.depth_anchors[f'{col}'][anchor_idx - 2]) / d_scale
+                    gt_stx_mtx[col][anchor_idx - 2] = [stixel['vB'], stixel['vT'], anchor_depth_2, 0.25]
+            elif i_attr == 3:
+                gt_stx_mtx[col][anchor_idx] = [stixel['vB'], stixel['vT'], 1.0]
+                if shadowing and anchor_idx >= 2 and gt_stx_mtx[col][anchor_idx - 1][2] == 0.0:
+                    gt_stx_mtx[col][anchor_idx - 1] = [stixel['vB'], stixel['vT'], 0.66]
+                    gt_stx_mtx[col][anchor_idx - 2] = [stixel['vB'], stixel['vT'], 0.25]
+            else:
+                raise NotImplementedError("Check num attributes.")
         # e.g. w=240 x n=12 x a=4
         label = torch.from_numpy(gt_stx_mtx).to(torch.float32)
         label = rearrange(label, "w n a -> a n w")
-        if self.model == "unet":
-            # 15 x 4 x 240
-            return rearrange(label, "a n w -> n a w")
         return label
 
     @staticmethod
     def revert(prediction: torch.Tensor, anchors: pd.DataFrame, img_name: List[str] = [""], prob: float = 0.9,
                img_size: Dict[str, int] = {'height': 1280, 'width': 1920}, u_scale: int = 8,
-               d_scale: float = 50.0) -> List[StixelWorld]:
+               d_scale: float = 50.0, four_attr: bool = False) -> List[StixelWorld]:
         """ extract stixel information from prediction """
         d_scale = d_scale * 0.1
         pred_np = prediction.numpy()
@@ -112,11 +117,18 @@ class StixelData(Dataset):
                 for n in range(len(columns[u])):
                     # print(f"candidate1: {candidate.shape}")
                     if columns[u][n][3] >= prob:
-                        stixel = Stixel(u=int(u * u_scale),
-                                        v_b=int(columns[u][n][0] * img_size['height']),
-                                        v_t=int(columns[u][n][1] * img_size['height']),
-                                        d=columns[u][n][2] * d_scale + anchors[f'{u}'][n],
-                                        prob=columns[u][n][3])
+                        if four_attr:
+                            stixel = Stixel(u=int(u * u_scale),
+                                            v_b=int(columns[u][n][0] * img_size['height']),
+                                            v_t=int(columns[u][n][1] * img_size['height']),
+                                            d=columns[u][n][2] * d_scale + anchors[f'{u}'][n],
+                                            prob=columns[u][n][3])
+                        else:
+                            stixel = Stixel(u=int(u * u_scale),
+                                            v_b=int(columns[u][n][0] * img_size['height']),
+                                            v_t=int(columns[u][n][1] * img_size['height']),
+                                            d=anchors[f'{u}'][n],
+                                            prob=columns[u][n][2])
                         # depth = 1 - stixel.d / d_scale
                         stixel_world.append(stixel)
             stixel_world_batch.append(StixelWorld(stixel_world, img_name=name))

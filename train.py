@@ -43,6 +43,15 @@ def cleanup():
     dist.destroy_process_group()
 
 
+def save_checkpoint(model, optimizer, epoch, loss, filename):
+    torch.save({
+        'epoch': epoch,
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'loss': loss,
+    }, filename)
+
+
 def train(rank, world_size):
     torch.cuda.init() 
     setup(rank, world_size)
@@ -62,17 +71,16 @@ def train(rank, world_size):
     """ 2.Define Model """
     model, model_cfg = Model()
     model = model.to(rank)
-    model = DDP(model, device_ids=[rank])
-
-    # Load Weights
+    # TODO: Load Weights
     if config['load_checkpoint'] is not None:
         weights_file = config['load_checkpoint']
         checkpoint = os.path.splitext(weights_file)[0]  # checkpoint without ending
-        run = checkpoint.split('_')[1]
+        # run = checkpoint.split('_')[1]
         model.load_state_dict(
-            torch.load(f=os.path.join("saved_models", run, weights_file),
+            torch.load(f=weights_file,
                        map_location=torch.device(rank)))
         print(f'Weights loaded from: {weights_file}')
+    model = DDP(model, device_ids=[rank])
 
     """ 3.Loss function & Training functions """
     # Loss function
@@ -88,12 +96,15 @@ def train(rank, world_size):
                                   config={
                                       "learning_rate": config['learning_rate'],
                                       "loss": type(loss_fn).__name__,
-                                      "loss_params": "-",
+                                      "loss_params": loss_fn.params(),
                                       "model": type(model).__name__,
                                       "model_params": model_cfg,
                                       "dataset": training_data.name,
                                       "epochs": config['epochs'],
-                                      "rank": rank
+                                      "rank": rank,
+                                      "batch_size": config['batch_size'],
+                                      "checkpoint": config['load_checkpoint'],
+                                      "early_stop": config['early_stop']
                                   },
                                   tags=["training"]
                                   )
@@ -106,7 +117,6 @@ def train(rank, world_size):
     summary(model, (config['batch_size'], 3, 1280, 1920))
 
     # Training
-    checkpoints = []
     early_stopping = EarlyStopping(tolerance=config['early_stop']['tol'],
                                    min_delta=config['early_stop']['min_delta'])
     for epoch in range(config['epochs']):
@@ -119,9 +129,9 @@ def train(rank, world_size):
         if config['logging'] and rank == 0:
             saved_models_path = os.path.join('saved_models', wandb_logger.name)
             os.makedirs(saved_models_path, exist_ok=True)
-            weights_name = f"StixelNExT_Pro{wandb_logger.name}_epoch-{epoch}_test-error-{test_error}.pth"
-            torch.save(model.state_dict(), os.path.join(saved_models_path, weights_name))
-            checkpoints.append({'checkpoint': weights_name, 'test-error': test_error})
+            weights_name = f"StixelNExT_Pro{wandb_logger.name}.pth"
+            save_checkpoint(model, optimizer, epoch, test_error, weights_name)
+            # torch.save(model.state_dict(), os.path.join(saved_models_path, weights_name))
             print("Saved PyTorch Model State to " + os.path.join(saved_models_path, weights_name))
         step_time = datetime.now() - overall_start_time
         print("Time elapsed: {}".format(step_time))
@@ -135,13 +145,7 @@ def train(rank, world_size):
     overall_time = datetime.now() - overall_start_time
     print(f"Finished training in {str(overall_time).split('.')[0]}")
 
-    if config['logging'] and rank == 0:
-        best_checkpoint = min(checkpoints, key=lambda x: x['test-error'])
-        source_path = os.path.join(saved_models_path, best_checkpoint['checkpoint'])
-        destination_path = os.path.join("best_models", best_checkpoint['checkpoint'])
-        shutil.copy(source_path, destination_path)
-        wandb.finish()
-
+    wandb.finish()
     cleanup()
 
 
