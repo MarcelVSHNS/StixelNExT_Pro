@@ -90,9 +90,7 @@ def train(rank, world_size):
     if config['load_checkpoint'] is not None:
         if rank == 0 and os.path.isfile(config['load_checkpoint']):
             start_epoch, loss = load_checkpoint(model, optimizer, config['load_checkpoint'])
-            print(f"Checkpoint {os.path.basename(config['load_checkpoint'])} loaded. Training stopped on epoch {start_epoch} with loss {loss}. Training will be continued ...")
-        else:
-            print(f"Check file path: {config['load_checkpoint']}. No Checkpoint is loaded!")
+            print(f"Checkpoint {os.path.basename(config['load_checkpoint'])} loaded. Training stopped on epoch {start_epoch - 1} with loss {loss}. Training will be continued ...")
 
     # Initialize Logger
     if config['logging'] and rank == 0:
@@ -134,7 +132,7 @@ def train(rank, world_size):
         if config['logging'] and rank == 0:
             saved_models_path = os.path.join('saved_models', wandb_logger.name)
             os.makedirs(saved_models_path, exist_ok=True)
-            weights_name = f"StixelNExT-Pro_{wandb_logger.name}-{epoch}.pth"
+            weights_name = f"StixelNExT-Pro_{wandb_logger.name}_{epoch}.pth"
             save_checkpoint(model, optimizer, epoch, test_error, os.path.join(saved_models_path, weights_name))
             print("Saved PyTorch Model State to " + os.path.join(saved_models_path, weights_name))
         step_time = datetime.now() - overall_start_time
