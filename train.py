@@ -90,7 +90,7 @@ def train(rank, world_size):
     if config['load_checkpoint'] is not None:
         if rank == 0 and os.path.isfile(config['load_checkpoint']):
             start_epoch, loss = load_checkpoint(model, optimizer, config['load_checkpoint'])
-            print(f"Checkpoint {os.path.basename(config['load_checkpoint'])} loaded. Continue training on epoch {start_epoch} with loss {loss}.")
+            print(f"Checkpoint {os.path.basename(config['load_checkpoint'])} loaded. Training stopped on epoch {start_epoch} with loss {loss}. Training will be continued ...")
         else:
             print(f"Check file path: {config['load_checkpoint']}. No Checkpoint is loaded!")
 
@@ -124,7 +124,7 @@ def train(rank, world_size):
     # Training
     early_stopping = EarlyStopping(tolerance=config['early_stop']['tol'],
                                    min_delta=config['early_stop']['min_delta'])
-    for epoch in range(start_epoch, config['epochs']):
+    for epoch in range(start_epoch + 1, config['epochs']):
         print(f"\n   Epoch {epoch + 1}\n----------------------------------------------------------------")
         train_error = train_one_epoch(train_dataloader, model, loss_fn, optimizer,
                                       device=rank, writer=wandb_logger)
