@@ -5,13 +5,11 @@ with open('config.yaml') as yamlfile:
 
 import torch
 import wandb
-import numpy as np
 from torch.utils.data import DataLoader, DistributedSampler
 import torch.multiprocessing as mp
 from torchinfo import summary
 from datetime import datetime
 import os
-import shutil
 from losses import StixelObjectLoss
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -52,6 +50,15 @@ def save_checkpoint(model, optimizer, epoch, loss, filename):
     }, filename)
 
 
+def load_checkpoint(model, optimizer, filename):
+    checkpoint = torch.load(filename)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    epoch = checkpoint['epoch']
+    loss = checkpoint['loss']
+    return epoch, loss
+
+
 def train(rank, world_size):
     torch.cuda.init() 
     setup(rank, world_size)
@@ -68,43 +75,38 @@ def train(rank, world_size):
     val_dataloader = DataLoader(validation_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True,
                                 sampler=validation_sampler)
 
-    """ 2.Define Model """
+    """ 2.Define Model & Loss """
     model, model_cfg = Model()
     model = model.to(rank)
-    # TODO: Load Weights
-    if config['load_checkpoint'] is not None:
-        weights_file = config['load_checkpoint']
-        checkpoint = os.path.splitext(weights_file)[0]  # checkpoint without ending
-        # run = checkpoint.split('_')[1]
-        model.load_state_dict(
-            torch.load(f=weights_file,
-                       map_location=torch.device(rank)))
-        print(f'Weights loaded from: {weights_file}')
     model = DDP(model, device_ids=[rank])
-
-    """ 3.Loss function & Training functions """
-    # Loss function
+    # Optimizer definition
+    optimizer = torch.optim.AdamW(model.parameters(), lr=config['learning_rate'])
+    # Loss initialization
     loss_weights = config['loss_w']
     loss_fn = StixelObjectLoss(loss_weights)
 
-    # Optimizer definition
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config['learning_rate'])
+    # Load checkpoint
+    start_epoch = 0
+    if config['load_checkpoint'] is not None:
+        if rank == 0 and os.path.isfile(config['load_checkpoint']):
+            start_epoch, _ = load_checkpoint(model, optimizer, config['load_checkpoint'])
 
     # Initialize Logger
     if config['logging'] and rank == 0:
         wandb_logger = wandb.init(project="StixelNExT Pro",
                                   config={
                                       "learning_rate": config['learning_rate'],
-                                      "loss": type(loss_fn).__name__,
-                                      "loss_params": loss_fn.params(),
-                                      "model": type(model).__name__,
-                                      "model_params": model_cfg,
+                                      "loss_name": type(loss_fn).__name__,
+                                      "loss": loss_fn.params(),
+                                      "model_name": type(model).__name__,
+                                      "model": model_cfg,
                                       "dataset": training_data.name,
                                       "epochs": config['epochs'],
                                       "rank": rank,
                                       "batch_size": config['batch_size'],
                                       "checkpoint": config['load_checkpoint'],
-                                      "early_stop": config['early_stop']
+                                      "early_stop": config['early_stop'],
+                                      "num_gpu": world_size
                                   },
                                   tags=["training"]
                                   )
@@ -112,14 +114,14 @@ def train(rank, world_size):
     else:
         wandb_logger = None
 
-    """ 4.Training """
+    """ 3.Training """
     # Inspect model
     summary(model, (config['batch_size'], 3, 1280, 1920))
 
     # Training
     early_stopping = EarlyStopping(tolerance=config['early_stop']['tol'],
                                    min_delta=config['early_stop']['min_delta'])
-    for epoch in range(config['epochs']):
+    for epoch in range(start_epoch, config['epochs']):
         print(f"\n   Epoch {epoch + 1}\n----------------------------------------------------------------")
         train_error = train_one_epoch(train_dataloader, model, loss_fn, optimizer,
                                       device=rank, writer=wandb_logger)
@@ -129,9 +131,8 @@ def train(rank, world_size):
         if config['logging'] and rank == 0:
             saved_models_path = os.path.join('saved_models', wandb_logger.name)
             os.makedirs(saved_models_path, exist_ok=True)
-            weights_name = f"StixelNExT_Pro{wandb_logger.name}.pth"
-            save_checkpoint(model, optimizer, epoch, test_error, weights_name)
-            # torch.save(model.state_dict(), os.path.join(saved_models_path, weights_name))
+            weights_name = f"StixelNExT-Pro_{wandb_logger.name}-{epoch}.pth"
+            save_checkpoint(model, optimizer, epoch, test_error, os.path.join(saved_models_path, weights_name))
             print("Saved PyTorch Model State to " + os.path.join(saved_models_path, weights_name))
         step_time = datetime.now() - overall_start_time
         print("Time elapsed: {}".format(step_time))
