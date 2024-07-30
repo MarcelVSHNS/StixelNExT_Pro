@@ -115,21 +115,22 @@ class StixelData(Dataset):
                 # print(f"Col1: {column.shape}")
                 for n in range(len(columns[u])):
                     # print(f"candidate1: {candidate.shape}")
-                    if columns[u][n][3] >= prob:
-                        if four_attr:
+                    if four_attr:
+                        if columns[u][n][3] >= prob:
                             stixel = Stixel(u=int(u * u_scale),
                                             v_b=int(columns[u][n][0] * img_size['height']),
                                             v_t=int(columns[u][n][1] * img_size['height']),
                                             d=columns[u][n][2] * d_scale + anchors[f'{u}'][n],
                                             prob=columns[u][n][3])
-                        else:
+                            stixel_world.append(stixel)
+                    else:
+                        if columns[u][n][2] >= prob:
                             stixel = Stixel(u=int(u * u_scale),
                                             v_b=int(columns[u][n][0] * img_size['height']),
                                             v_t=int(columns[u][n][1] * img_size['height']),
                                             d=anchors[f'{u}'][n],
                                             prob=columns[u][n][2])
-                        # depth = 1 - stixel.d / d_scale
-                        stixel_world.append(stixel)
+                            stixel_world.append(stixel)
             stixel_world_batch.append(StixelWorld(stixel_world, img_name=name))
         return stixel_world_batch
 

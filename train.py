@@ -124,7 +124,7 @@ def train(rank, world_size):
     # Training
     early_stopping = EarlyStopping(tolerance=config['early_stop']['tol'],
                                    min_delta=config['early_stop']['min_delta'])
-    for epoch in range(start_epoch + 1, config['epochs']):
+    for epoch in range(start_epoch, config['epochs']):
         print(f"\n   Epoch {epoch + 1}\n----------------------------------------------------------------")
         train_error = train_one_epoch(train_dataloader, model, loss_fn, optimizer,
                                       device=rank, writer=wandb_logger)
