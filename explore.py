@@ -24,15 +24,20 @@ def main():
     testing_dataloader = DataLoader(testing_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True, shuffle=True)
 
     img_tensor, target_tensor, name = next(iter(testing_dataloader))
-    """ Data exploration 
+    """ Data exploration """
     stixel_world_batch = StixelData.revert(target_tensor, testing_data.depth_anchors,
                                            img_name=name,
                                            img_size=testing_data.img_size)
     stixel_world: StixelWorld = stixel_world_batch[0]
     image_path = os.path.join(config['data_path'], 'validation', 'FRONT', stixel_world.image_name + '.png')
     image: Image = Image.open(image_path)
-    stixel_img = draw_stixels_on_image(image, stixel_world.stixel,)
-    stixel_img.show()"""
+    stixel_img = draw_stixels_on_image(image, stixel_world.stixel)
+    stixel_img.show()
+    # original
+    stixel_path = os.path.join(config['data_path'], 'validation', 'Stixel', stixel_world.image_name + '.csv')
+    stixel_world_og: StixelWorld = StixelWorld.read(stixel_path)
+    stixel_img = draw_stixels_on_image(image, stixel_world_og.stixel)
+    stixel_img.show()
 
     """ Model exploration 
     # model = UNet(n_channels=3)
@@ -45,7 +50,7 @@ def main():
     summary(model, input_size=input_shape, device=torch.device('cpu'))
     print(f"Output shape: {output.shape}")"""
 
-    """ Loss exploration """
+    """ Loss exploration 
     inputs = torch.rand(1, 3, 64, 240)
     loss_fn = StixelObjectLoss(weights=config['loss_w'])
     l1 = loss_fn(inputs, inputs)
@@ -53,7 +58,7 @@ def main():
     print(f"Ident: {l1}")
     target = torch.rand(1, 3, 64, 240)
     l2 = loss_fn(inputs, target)
-    print(f"Diff: {l2}")
+    print(f"Diff: {l2}")"""
 
 
 if __name__ == '__main__':

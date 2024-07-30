@@ -19,7 +19,7 @@ with open('config.yaml') as yamlfile:
 
 
 def main():
-    p_threshold = 0.0001
+    p_threshold = 0.5
     save_img: bool = False
     device = torch.device('cpu' if torch.cuda.is_available() else 'cpu')
     testing_data = StixelData(data_dir=config['data_path'], phase='training', model=config['model'], return_name=True)
@@ -31,7 +31,8 @@ def main():
     if config['load_checkpoint']:
         checkpoint = torch.load(config['load_checkpoint'])
         new_state_dict = OrderedDict()
-        for k, v in checkpoint.items():
+        model_state = checkpoint['model_state_dict']
+        for k, v in model_state.items():
             name = k[7:] if k.startswith('module.') else k
             new_state_dict[name] = v
         model.load_state_dict(new_state_dict)
@@ -44,8 +45,8 @@ def main():
     output = model(img_tensor)
     # extract Stixel
     output = output.cpu().detach()
-    # test = output[0, 1:3, :, 50].numpy()
-    # test_targ = target_tensor[0, 1:3, :, 50].numpy()
+    # test = output[0, 0:3, :, 50].numpy()
+    # test_targ = target_tensor[0, 0:3, :, 50].numpy()
     stixel_world_batch = StixelData.revert(output, testing_data.depth_anchors,
                                            img_name=name,
                                            img_size=testing_data.img_size,
