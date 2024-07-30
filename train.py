@@ -89,7 +89,8 @@ def train(rank, world_size):
     start_epoch = 0
     if config['load_checkpoint'] is not None:
         if rank == 0 and os.path.isfile(config['load_checkpoint']):
-            start_epoch, _ = load_checkpoint(model, optimizer, config['load_checkpoint'])
+            start_epoch, loss = load_checkpoint(model, optimizer, config['load_checkpoint'])
+            print(f"Checkpoint {os.path.basename(config['load_checkpoint'])} loaded. Continue training on epoch {start_epoch} with loss {loss}.")
 
     # Initialize Logger
     if config['logging'] and rank == 0:
