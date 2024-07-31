@@ -28,9 +28,9 @@ def main():
     img_tensor, target_tensor, name = next(iter(testing_dataloader))
 
     """ Data exploration """
-    stixel_world_batch = StixelData.revert(target_tensor, testing_data.depth_anchors,
-                                           img_name=name,
-                                           img_size=testing_data.img_size)
+    stixel_world_batch = StixelData.revert_class(target_tensor, testing_data.depth_anchors,
+                                                 img_name=name,
+                                                 img_size=testing_data.img_size)
     stixel_world: StixelWorld = stixel_world_batch[0]
     image_path = os.path.join(config['data_path'], 'validation', 'FRONT', stixel_world.image_name + '.png')
     image: Image = Image.open(image_path)
