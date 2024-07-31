@@ -9,15 +9,15 @@ import yaml
 class ConvNeXtHead(nn.Module):
     def __init__(self, in_channels, out_channels, i_attributes):
         super(ConvNeXtHead, self).__init__()
-        self.up = nn.Upsample(size=(1, 240), mode='nearest')
+        self.up = nn.Upsample(size=(1, 240), mode='bilinear')
         self.channel_reduce = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=1)
         self.out_channels = out_channels
         self.i_attributes = i_attributes
         self.activation = nn.Sigmoid()
 
     def forward(self, x):
-        x = self.up(x)
         x = self.channel_reduce(x)
+        x = self.up(x)
         assert self.out_channels % self.i_attributes == 0, "NN depth does not match, adapt n_channels."
         n_candidates = self.out_channels // self.i_attributes
         x = rearrange(x, 'b (a n) h w -> b a n h w', a=self.i_attributes, n=n_candidates)

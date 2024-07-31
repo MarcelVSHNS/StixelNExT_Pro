@@ -18,13 +18,17 @@ import time
 class StixelData(Dataset):
     # 1. Implement __init()__
     def __init__(self, data_dir: str, phase: str, model:  str, annotation_dir="Stixel", img_dir="FRONT",
-                 bin_dir="targets", transform=None, target_transform=None, return_name=False, read_from_bin=False):
+                 bin_dir="targets", transform=None, target_transform=None, return_name=False, read_from_bin=False,
+                 depth_anchors=False):
         self.data_dir = os.path.join(data_dir, phase)
         with open(data_dir + '/dataset-config.yaml') as file:
             config = yaml.load(file, Loader=yaml.FullLoader)
             self.name: str = f"{os.path.basename(config['name'])}.{phase}"
             self.img_size = {'height': int(config['img_height']), 'width': int(config['img_width'])}
-        self.depth_anchors = pd.read_csv(os.path.join(data_dir, "depth_anchors.csv"), index_col=0)
+        if depth_anchors:
+            self.depth_anchors = pd.read_csv(os.path.join(data_dir, "depth_anchors.csv"), index_col=0)
+        else:
+            self.depth_anchors = _create_depth_bins(5, 50, 64)
         self.img_path = os.path.join(self.data_dir, img_dir)
         self.annotation_path = os.path.join(self.data_dir, annotation_dir)
         self.bin_dir = os.path.join(self.data_dir, bin_dir)
@@ -63,7 +67,7 @@ class StixelData(Dataset):
             return feature_image, target_labels
 
     def _preparation_of_target_label(self, y_target: pandas.DataFrame, n_obj_preds: int = 12, i_attr: int = 3,
-                                     u_scale: int = 8, d_scale: float = 50.0, shadowing: bool = True) -> torch.tensor:
+                                     u_scale: int = 8, d_scale: float = 50.0, shadowing: bool = False) -> torch.tensor:
         d_scale = d_scale * 0.1
         # img_path,x,yT,yB,class,depth: prepare data like normalization and scaling
         y_target['u'] = (y_target['u'] // u_scale).astype(int)                              # u as index
@@ -72,6 +76,7 @@ class StixelData(Dataset):
         # inverted depth and scaled over 100 m
         # y_target['d'] = 1 - y_target['d'] / d_scale
         width = int(self.img_size['width'] / u_scale)
+        y_target = y_target.sort_values(by='vT', ascending=False)
 
         gt_stx_mtx = np.zeros((width, n_obj_preds, i_attr))
         for index, stixel in y_target.iterrows():
@@ -135,11 +140,12 @@ class StixelData(Dataset):
         return stixel_world_batch
 
 
-def find_nearest_depth(column_anchors: pd.DataFrame, depth):
+def find_nearest_depth(column_anchors: pd.DataFrame, depth, floor=False):
     # Filter the column to get only values smaller or equal to the given value
-    filtered_column = column_anchors[column_anchors <= depth]
+    if floor:
+        column_anchors = column_anchors[column_anchors <= depth]
     # If no such values exist, return the min val
-    if filtered_column.empty:
+    if column_anchors.empty:
         return depth, 0
     diff = (column_anchors - depth).abs()
     # Find the index of the minimum difference
@@ -172,3 +178,12 @@ def target_transform_gaussian_blur(y_target: torch.Tensor) -> torch.Tensor:
         stixel_mtx[1] = overlay_original(blur_cuts, stixel_mtx[1])
 
     return torch.from_numpy(stixel_mtx).to(torch.float32)
+
+
+def _create_depth_bins(start=5, end=55, num_bins=192):
+    bin_vals = np.linspace(start, end, num_bins)
+    bin_mtx = np.tile(bin_vals, (240, 1))
+    df = pd.DataFrame(bin_mtx)
+    df = df.T
+    df.columns = [str(i) for i in range(240)]
+    return df

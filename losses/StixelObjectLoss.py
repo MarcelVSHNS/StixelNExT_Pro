@@ -23,8 +23,8 @@ class StixelObjectLoss(nn.Module):
         else:
             self.weights = weights
         # Focal Loss focus more on hard samples. BCE: universal probability loss
-        self.classify_loss = focal_loss.sigmoid_focal_loss
-        # self.class_loss: nn.BCELoss = nn.BCELoss()
+        # self.classify_loss = focal_loss.sigmoid_focal_loss
+        self.class_loss: nn.BCELoss = nn.BCELoss()
         # MSE: bottom point position loss + stixel/ object length loss, ...
         self.regress_loss: nn.MSELoss = nn.MSELoss(reduction="none")
         # self.regress_loss: nn.SmoothL1Loss = nn.SmoothL1Loss()
@@ -56,13 +56,13 @@ class StixelObjectLoss(nn.Module):
         mask = (targets[:, p_idx, :, :] > 0).float()
 
         # currently no matching is implemented, double loss as possible strategy
-        prob_loss = self.classify_loss(inputs[:, p_idx, :, :], targets[:, p_idx, :, :], reduction="none") * self.weights['P']
+        depth_bin_loss = self.classify_loss(inputs[:, p_idx, :, :], targets[:, p_idx, :, :], alpha=0.25, gamma=2, reduction="mean") * self.weights['P']
         bottom_loss = self.regress_loss(inputs[:, vb_idx, :, :], targets[:, vb_idx, :, :]) * self.weights['vB']
         top_loss = self.regress_loss(inputs[:, vt_idx, :, :], targets[:, vt_idx, :, :]) * self.weights['vT']
         # depth_loss = self.regress_loss(inputs[:, 2, :, :], targets[:, 2, :, :]) * self.weights['d']
         # depth_length_ratio_loss = self.depth_length_ratio_loss_fn(inputs, targets) * self.weights['depth_length_ratio']
 
         # summarize all partial losses and apply mask
-        masked_losses = (prob_loss + top_loss + bottom_loss) * mask
-        final_loss = masked_losses.sum() / mask.sum()
-        return final_loss   # + depth_loss  + depth_length_ratio_loss
+        masked_seg_loss = (top_loss + bottom_loss) * mask
+        seg_loss = masked_seg_loss.sum() / mask.sum()
+        return depth_bin_loss + seg_loss   # + depth_loss  + depth_length_ratio_loss

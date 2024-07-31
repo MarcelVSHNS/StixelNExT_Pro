@@ -19,10 +19,10 @@ with open('config.yaml') as yamlfile:
 
 
 def main():
-    p_threshold = 0.5
+    p_threshold = 0.7
     save_img: bool = False
     device = torch.device('cpu' if torch.cuda.is_available() else 'cpu')
-    testing_data = StixelData(data_dir=config['data_path'], phase='training', model=config['model'], return_name=True)
+    testing_data = StixelData(data_dir="/media/marcel/Data1/Datasets/waymo-od", phase='testing', model=config['model'], return_name=True)
     testing_dataloader = DataLoader(testing_data, batch_size=1, pin_memory=True, drop_last=True,
                                     shuffle=True)
     model, _ = convnext_stixel()
@@ -45,14 +45,14 @@ def main():
     output = model(img_tensor)
     # extract Stixel
     output = output.cpu().detach()
-    # test = output[0, 0:3, :, 50].numpy()
-    # test_targ = target_tensor[0, 0:3, :, 50].numpy()
+    test = output[0, 0:3, :, 110].numpy()
+    test_targ = target_tensor[0, 0:3, :, 110].numpy()
     stixel_world_batch = StixelData.revert(output, testing_data.depth_anchors,
                                            img_name=name,
                                            img_size=testing_data.img_size,
                                            prob=p_threshold)
     stixel_world: StixelWorld = stixel_world_batch[0]
-    image = Image.open(os.path.join(config['data_path'], "training", "FRONT", f"{name[0]}.png"))
+    image = Image.open(os.path.join("/media/marcel/Data1/Datasets/waymo-od", "testing", "FRONT", f"{name[0]}.png"))
 
     stixel_img = draw_stixels_on_image(image, stixel_world.stixel)
     # stixel_img.show(title="prediction")
