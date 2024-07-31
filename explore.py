@@ -1,4 +1,5 @@
 import yaml
+
 # 0.1 Load configfile
 with open('config.yaml') as yamlfile:
     config = yaml.load(yamlfile, Loader=yaml.FullLoader)
@@ -20,11 +21,13 @@ import time
 
 
 def main():
-    """ testing_data = StixelData(data_dir=config['data_path'], phase='validation', model=config['model'], return_name=True)
-    testing_dataloader = DataLoader(testing_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True, shuffle=True)
+    testing_data = StixelData(data_dir=config['data_path'], phase='validation', model=config['model'], return_name=True)
+    testing_dataloader = DataLoader(testing_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True,
+                                    shuffle=True)
 
     img_tensor, target_tensor, name = next(iter(testing_dataloader))
-     Data exploration
+
+    """ Data exploration """
     stixel_world_batch = StixelData.revert(target_tensor, testing_data.depth_anchors,
                                            img_name=name,
                                            img_size=testing_data.img_size)
@@ -37,12 +40,12 @@ def main():
     stixel_path = os.path.join(config['data_path'], 'validation', 'Stixel', stixel_world.image_name + '.csv')
     stixel_world_og: StixelWorld = StixelWorld.read(stixel_path)
     stixel_img = draw_stixels_on_image(image, stixel_world_og.stixel)
-    stixel_img.show()"""
+    stixel_img.show()
 
     """ Model exploration """
-    model, _ = unet()
+    # model, _ = unet()
     # model = ConvNeXt(in_channels=3, c=60, depths_b=[3, 3, 27, 3])
-    # model, _ = convnext_stixel()
+    model, _ = convnext_stixel()
 
     input_shape = (1, 3, 1280, 1920)
     x = torch.randn(input_shape)
