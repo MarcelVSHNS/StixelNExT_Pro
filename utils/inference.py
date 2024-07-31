@@ -47,10 +47,10 @@ def main():
     output = output.cpu().detach()
     test = output[0, 0:3, :, 110].numpy()
     test_targ = target_tensor[0, 0:3, :, 110].numpy()
-    stixel_world_batch = StixelData.revert(output, testing_data.depth_anchors,
-                                           img_name=name,
-                                           img_size=testing_data.img_size,
-                                           prob=p_threshold)
+    stixel_world_batch = StixelData.revert_class(output, testing_data.depth_anchors,
+                                                 img_name=name,
+                                                 img_size=testing_data.img_size,
+                                                 prob=p_threshold)
     stixel_world: StixelWorld = stixel_world_batch[0]
     image = Image.open(os.path.join("/media/marcel/Data1/Datasets/waymo-od", "testing", "FRONT", f"{name[0]}.png"))
 
@@ -58,10 +58,10 @@ def main():
     # stixel_img.show(title="prediction")
 
     # Ground Truth
-    stixel_world_batch_targ = StixelData.revert(target_tensor, testing_data.depth_anchors,
-                                           img_name=name,
-                                           img_size=testing_data.img_size,
-                                           prob=p_threshold)
+    stixel_world_batch_targ = StixelData.revert_class(target_tensor, testing_data.depth_anchors,
+                                                      img_name=name,
+                                                      img_size=testing_data.img_size,
+                                                      prob=p_threshold)
     stixel_world_targ: StixelWorld = stixel_world_batch_targ[0]
     stixel_img_targ = draw_stixels_on_image(image, stixel_world_targ.stixel)
     # stixel_img_targ.show(title="ground_truth")

@@ -17,8 +17,16 @@ import time
 # 0. Implementation of a Dataset
 class StixelData(Dataset):
     # 1. Implement __init()__
-    def __init__(self, data_dir: str, phase: str, model:  str, annotation_dir="Stixel", img_dir="FRONT",
-                 bin_dir="targets", transform=None, target_transform=None, return_name=False, read_from_bin=False,
+    def __init__(self, data_dir: str,
+                 phase: str,
+                 model:  str,
+                 mode: str,
+                 annotation_dir="Stixel",
+                 img_dir="FRONT",
+                 bin_dir="targets",
+                 transform=None,
+                 target_transform=None,
+                 return_name=False,
                  depth_anchors=False):
         self.data_dir = os.path.join(data_dir, phase)
         with open(data_dir + '/dataset-config.yaml') as file:
@@ -34,9 +42,9 @@ class StixelData(Dataset):
         self.bin_dir = os.path.join(self.data_dir, bin_dir)
         filenames: List[str] = os.listdir(os.path.join(self.data_dir, img_dir))
         self.sample_map: List[str] = [os.path.splitext(filename)[0] for filename in filenames]
+        self.mode = mode
         self.transform = transform
         self.return_name: bool = return_name
-        self.read_from_bin: bool = read_from_bin
         self.model = model
         self.target_transform = target_transform
 
@@ -48,14 +56,13 @@ class StixelData(Dataset):
     def __getitem__(self, idx):
         img_path_full: str = os.path.join(self.img_path, self.sample_map[idx] + ".png")
         feature_image: torch.Tensor = read_image(img_path_full, ImageReadMode.RGB).to(torch.float32)
-        if self.read_from_bin:
-            with open(os.path.join(self.bin_dir, f"{self.sample_map[idx]}.stxlnxt"), "rb") as f:
-                bytes_data = f.read()
-                target_labels = np.frombuffer(bytes_data, dtype=np.float64).reshape(4, self.depth_anchors.shape[0], 240)
-            target_labels = torch.from_numpy(target_labels.copy()).to(torch.float32)
+        target_labels = pd.read_csv(os.path.join(self.annotation_path, os.path.basename(self.sample_map[idx]) + ".csv"))
+        if self.mode == "classification":
+            target_labels = self._classification_target_label(target_labels, out_bins=self.depth_anchors.shape[0])
+        elif self.mode == "segmentation":
+            target_labels = self._segmentation_target_label(target_labels, out_bins=self.depth_anchors.shape[0])
         else:
-            target_labels = pd.read_csv(os.path.join(self.annotation_path, os.path.basename(self.sample_map[idx]) + ".csv"))
-            target_labels = self._preparation_of_target_label(target_labels, n_obj_preds=self.depth_anchors.shape[0])
+            raise ValueError(f"Mode {self.mode} not recognized.")
         if self.transform:
             feature_image = self.transform(feature_image)
         if self.target_transform:
@@ -66,8 +73,12 @@ class StixelData(Dataset):
         else:
             return feature_image, target_labels
 
-    def _preparation_of_target_label(self, y_target: pandas.DataFrame, n_obj_preds: int = 12, i_attr: int = 3,
-                                     u_scale: int = 8, d_scale: float = 50.0, shadowing: bool = False) -> torch.tensor:
+    def _classification_target_label(self, y_target: pandas.DataFrame,
+                                     out_bins: int = 12,
+                                     i_attr: int = 3,
+                                     u_scale: int = 8,
+                                     d_scale: float = 50.0,
+                                     shadowing: bool = False) -> torch.tensor:
         d_scale = d_scale * 0.1
         # img_path,x,yT,yB,class,depth: prepare data like normalization and scaling
         y_target['u'] = (y_target['u'] // u_scale).astype(int)                              # u as index
@@ -78,7 +89,7 @@ class StixelData(Dataset):
         width = int(self.img_size['width'] / u_scale)
         y_target = y_target.sort_values(by='vT', ascending=False)
 
-        gt_stx_mtx = np.zeros((width, n_obj_preds, i_attr))
+        gt_stx_mtx = np.zeros((width, out_bins, i_attr))
         for index, stixel in y_target.iterrows():
             col = stixel['u']
             anchor, anchor_idx = find_nearest_depth(self.depth_anchors[f'{col}'], stixel['d'])
@@ -105,9 +116,14 @@ class StixelData(Dataset):
         return label
 
     @staticmethod
-    def revert(prediction: torch.Tensor, anchors: pd.DataFrame, img_name: List[str] = [""], prob: float = 0.9,
-               img_size: Dict[str, int] = {'height': 1280, 'width': 1920}, u_scale: int = 8,
-               d_scale: float = 50.0, four_attr: bool = False) -> List[StixelWorld]:
+    def revert_class(prediction: torch.Tensor,
+                     anchors: pd.DataFrame,
+                     img_name: List[str] = [""],
+                     prob: float = 0.9,
+                     img_size: Dict[str, int] = {'height': 1280, 'width': 1920},
+                     u_scale: int = 8,
+                     d_scale: float = 50.0,
+                     four_attr: bool = False) -> List[StixelWorld]:
         """ extract stixel information from prediction """
         d_scale = d_scale * 0.1
         pred_np = prediction.numpy()
@@ -136,6 +152,66 @@ class StixelData(Dataset):
                                             d=anchors[f'{u}'][n],
                                             prob=columns[u][n][2])
                             stixel_world.append(stixel)
+            stixel_world_batch.append(StixelWorld(stixel_world, img_name=name))
+        return stixel_world_batch
+
+    def _segmentation_target_label(self, y_target: pandas.DataFrame,
+                                   out_bins: int = 64,
+                                   u_scale: int = 8,
+                                   v_scale: int = 8) -> torch.tensor:
+        y_target['u'] = (y_target['u'] // u_scale).astype(int)
+        y_target['vT'] = (y_target['vT'] // v_scale).astype(int)
+        y_target['vB'] = (y_target['vB'] // v_scale).astype(int)
+        width = int(self.img_size['width'] / u_scale)
+        height = int(self.img_size['height'] / v_scale)
+
+        # shape: depth, height, width
+        gt_stx_mtx = np.zeros((out_bins, height, width))
+        for index, stixel in y_target.iterrows():
+            col: int = stixel['u']
+            anchor, anchor_idx = find_nearest_depth(self.depth_anchors[f'{col}'], stixel['d'])
+            for voxel_col in range(stixel['vT'], stixel['vB'] + 1):
+                gt_stx_mtx[anchor_idx, int(voxel_col), int(stixel['u'])] = 1
+        label = torch.from_numpy(gt_stx_mtx).to(torch.float32)
+        return label
+
+    @staticmethod
+    def revert_segm(prediction: torch.Tensor,
+                    anchors: pd.DataFrame,
+                    img_name: List[str] = [""],
+                    prob: float = 0.9,
+                    u_scale: int = 8,
+                    v_scale: int = 8) -> List[StixelWorld]:
+        pred_np = prediction.numpy()
+        stixel_world_batch = []
+        for batch, name in zip(pred_np, img_name):
+            stixel_world = []
+            # print(f"Batch1: {batch.shape}")
+            columns = rearrange(batch, "d h w -> w d h")
+            for u in range(len(columns)):
+                for d in range(len(columns[u])):
+                    stixel_start = 0
+                    in_stixel = False
+                    stixel_prob = []
+                    for v in range(len(columns[u][d])):
+                        if in_stixel:
+                            if columns[u][d][v] < prob:
+                                stixel = Stixel(u=int(u * u_scale),
+                                                v_b=int(v * v_scale),
+                                                v_t=int(stixel_start * v_scale),
+                                                d=anchors[f'{u}'][d],
+                                                prob=sum(stixel_prob) / len(stixel_prob))
+                                stixel_world.append(stixel)
+                                in_stixel = False
+                            else:
+                                stixel_prob.append(columns[u][d][v])
+                        else:
+                            if columns[u][d][v] >= prob:
+                                stixel_start = v
+                                stixel_prob.append(columns[u][d][v])
+                                in_stixel = True
+                            else:
+                                pass
             stixel_world_batch.append(StixelWorld(stixel_world, img_name=name))
         return stixel_world_batch
 
