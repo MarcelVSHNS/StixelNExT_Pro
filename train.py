@@ -3,27 +3,27 @@ import yaml
 with open('config.yaml') as yamlfile:
     config = yaml.load(yamlfile, Loader=yaml.FullLoader)
 
+import os
 import torch
 import wandb
 from torch.utils.data import DataLoader, DistributedSampler
 import torch.multiprocessing as mp
 from torchinfo import summary
+from typing import Dict
 from datetime import datetime
-import os
-from losses import StixelObjectLoss
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from engine import train_one_epoch, evaluate, EarlyStopping
 from dataloader import StixelData
 
-if config['model'] == "unet":
-    from models import UNet as Model
-elif config['model'] == "convnext":
-    from models import ConvNeXt as Model
-elif config['model'] == "convnext_pretrained":
-    from models import convnext_stixel as Model
+if config['mode'] == "segmentation":
+    from models import unet_stixel as model_fn
+    from losses import StixelVoxelLoss as StixelLoss
+elif config['mode'] == "classification":
+    from models import convnext_stixel as model_fn
+    from losses import StixelObjectLoss as StixelLoss
 else:
-    raise ValueError("Invalid model specified in config file!")
+    raise ValueError("Invalid mode specified in config file!")
 
 # starting time for all instances
 overall_start_time = datetime.now()
@@ -65,25 +65,29 @@ def train(rank, world_size):
 
     """ 1.Load data """
     # Training data, TODO: impact of shuffling or not?
-    training_data = StixelData(data_dir=config['data_path'], phase='training', model=config['model'], mode=config['mode'])
+    training_data = StixelData(data_dir=config['data_path'], phase='training', mode=config['mode'])
     training_sampler = DistributedSampler(training_data, num_replicas=world_size, rank=rank)
     train_dataloader = DataLoader(training_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True,
                                   sampler=training_sampler)
     # Validation data
-    validation_data = StixelData(data_dir=config['data_path'], phase='validation', model=config['model'], mode=config['mode'])
+    validation_data = StixelData(data_dir=config['data_path'], phase='validation', mode=config['mode'])
     validation_sampler = DistributedSampler(validation_data, num_replicas=world_size, rank=rank)
     val_dataloader = DataLoader(validation_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True,
                                 sampler=validation_sampler)
 
     """ 2.Define Model & Loss """
-    model, model_cfg = Model()
+    model, model_cfg = model_fn()
     model = model.to(rank)
     model = DDP(model, device_ids=[rank])
     # Optimizer definition
     optimizer = torch.optim.AdamW(model.parameters(), lr=config['learning_rate'])
     # Loss initialization
-    loss_weights = config['loss_w']
-    loss_fn = StixelObjectLoss(loss_weights)
+    loss_weights: Dict[str, float] = {}
+    if config['mode'] == "segmentation":
+        loss_weights = config['loss_w_seg']
+    elif config['mode'] == "classification":
+        loss_weights = config['loss_w_cls']
+    loss_fn = StixelLoss(loss_weights)
 
     # Load checkpoint
     start_epoch = 0
@@ -99,7 +103,7 @@ def train(rank, world_size):
                                       "learning_rate": config['learning_rate'],
                                       "loss_name": type(loss_fn).__name__,
                                       "loss": loss_fn.params(),
-                                      "model_name": type(model).__name__,
+                                      "mode": config['mode'],
                                       "model": model_cfg,
                                       "dataset": training_data.name,
                                       "epochs": config['epochs'],

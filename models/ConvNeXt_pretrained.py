@@ -9,7 +9,7 @@ import yaml
 class ConvNeXtHead(nn.Module):
     def __init__(self, in_channels, out_channels, i_attributes):
         super(ConvNeXtHead, self).__init__()
-        self.up = nn.Upsample(size=(1, 240), mode='bilinear')
+        self.up = nn.Upsample(size=(1, 240), mode='nearest')
         self.channel_reduce = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=1)
         self.out_channels = out_channels
         self.i_attributes = i_attributes
@@ -32,7 +32,7 @@ def convnext_stixel(weights: Optional[ConvNeXt_Tiny_Weights] = None, **kwargs: A
     depths_b: List[int] = config['depths_b']
     n_candidates: int = config['n_candidates']
     i_attr: int = config['i_attributes']
-    model_params = {'C': c, 'B': depths_b, 'n_cand': n_candidates, 'i_attributes': i_attr}
+    model_params = {'name': "ConvNeXt", 'C': c, 'B': depths_b, 'n_cand': n_candidates, 'i_attr': i_attr}
     if c == 96 and depths_b == [3, 3, 9, 3]:
         weights = ConvNeXt_Tiny_Weights.DEFAULT
         # weights = ConvNeXt_Tiny_Weights.verify(weights)

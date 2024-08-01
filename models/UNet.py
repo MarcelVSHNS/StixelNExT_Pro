@@ -132,20 +132,21 @@ class UnetHead(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(UnetHead, self).__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
+        self.activation = nn.Sigmoid()
 
     def forward(self, x):
         x = self.conv(x)
-        return x
+        return self.activation(x)
 
 
-def unet() -> Tuple[UNet, Dict[str, Any]]:
+def unet_stixel() -> Tuple[UNet, Dict[str, Any]]:
     with open('models/unet-config.yaml') as file:
         config = yaml.load(file, Loader=yaml.FullLoader)
     c_width: int = config['widths_c']
     level_b: int = config['level_b']
     out_bins: int = config['out_bins']
     block_exp = config['block_expansion']
-    model_cfg = {'C': c_width, 'B': level_b, 'out_bins': out_bins, 'block_exp': block_exp}
+    model_cfg = {'name': "UNet", 'C': c_width, 'B': level_b, 'out_bins': out_bins, 'block_exp': block_exp}
     model = UNet(c_width=c_width,
                  b_level=level_b,
                  out_bins=out_bins,
