@@ -17,7 +17,7 @@ from engine import train_one_epoch, evaluate, EarlyStopping
 from dataloader import StixelData
 
 if config['mode'] == "segmentation":
-    from models import unet_stixel as model_fn
+    from models import convnext_stixel_segmentation as model_fn
     from losses import StixelVoxelLoss as StixelLoss
 elif config['mode'] == "classification":
     from models import convnext_stixel as model_fn
@@ -78,7 +78,7 @@ def train(rank, world_size):
     """ 2.Define Model & Loss """
     model, model_cfg = model_fn()
     model = model.to(rank)
-    model = DDP(model, device_ids=[rank])
+    model = DDP(model, device_ids=[rank], find_unused_parameters=True)
     # Optimizer definition
     optimizer = torch.optim.AdamW(model.parameters(), lr=config['learning_rate'])
     # Loss initialization

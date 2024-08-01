@@ -23,10 +23,10 @@ else:
 
 
 def main():
-    p_threshold = 0.101
+    p_threshold = 0.30
     save_img: bool = False
     device = torch.device('cpu' if torch.cuda.is_available() else 'cpu')
-    testing_data = StixelData(data_dir="/media/marcel/Data1/Datasets/waymo-od", phase='testing', return_name=True, mode=config['mode'])
+    testing_data = StixelData(data_dir="/media/marcel/Data1/Datasets/waymo-od", phase='training', return_name=True, mode=config['mode'])
     testing_dataloader = DataLoader(testing_data, batch_size=1, pin_memory=True, drop_last=True,
                                     shuffle=True)
     model, _ = model_fn()
@@ -56,7 +56,7 @@ def main():
                                                  img_size=testing_data.img_size,
                                                  prob=p_threshold)
     stixel_world: StixelWorld = stixel_world_batch[0]
-    image = Image.open(os.path.join("/media/marcel/Data1/Datasets/waymo-od", "testing", "FRONT", f"{name[0]}.png"))
+    image = Image.open(os.path.join("/media/marcel/Data1/Datasets/waymo-od", "training", "FRONT", f"{name[0]}.png"))
 
     stixel_img = draw_stixels_on_image(image, stixel_world.stixel)
     # stixel_img.show(title="prediction")
