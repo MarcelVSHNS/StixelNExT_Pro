@@ -65,7 +65,7 @@ def train(rank, world_size):
 
     """ 1.Load data """
     # Training data, TODO: impact of shuffling or not?
-    training_data = StixelData(data_dir=config['data_path'], phase='training', mode=config['mode'])
+    training_data = StixelData(data_dir=config['data_path'], phase='training', mode=config['mode'], target_trans_blur=config['blur'])
     training_sampler = DistributedSampler(training_data, num_replicas=world_size, rank=rank)
     train_dataloader = DataLoader(training_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True,
                                   sampler=training_sampler)
@@ -111,7 +111,8 @@ def train(rank, world_size):
                                       "batch_size": config['batch_size'],
                                       "checkpoint": config['load_checkpoint'],
                                       "early_stop": config['early_stop'],
-                                      "num_gpu": world_size
+                                      "num_gpu": world_size,
+                                      "blur": config['blur']
                                   },
                                   tags=["training"]
                                   )
