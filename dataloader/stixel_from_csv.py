@@ -19,7 +19,6 @@ class StixelData(Dataset):
     # 1. Implement __init()__
     def __init__(self, data_dir: str,
                  phase: str,
-                 model:  str,
                  mode: str,
                  annotation_dir="Stixel",
                  img_dir="FRONT",
@@ -45,7 +44,6 @@ class StixelData(Dataset):
         self.mode = mode
         self.transform = transform
         self.return_name: bool = return_name
-        self.model = model
         self.target_transform = target_transform
 
     # 2. Implement __len()__
@@ -156,7 +154,7 @@ class StixelData(Dataset):
         return stixel_world_batch
 
     def _segmentation_target_label(self, y_target: pandas.DataFrame,
-                                   out_bins: int = 64,
+                                   out_bins: int = 192,
                                    u_scale: int = 8,
                                    v_scale: int = 8) -> torch.tensor:
         y_target['u'] = (y_target['u'] // u_scale).astype(int)
@@ -170,7 +168,7 @@ class StixelData(Dataset):
         for index, stixel in y_target.iterrows():
             col: int = stixel['u']
             anchor, anchor_idx = find_nearest_depth(self.depth_anchors[f'{col}'], stixel['d'])
-            for voxel_col in range(stixel['vT'], stixel['vB'] + 1):
+            for voxel_col in range(stixel['vT'], stixel['vB']):
                 gt_stx_mtx[anchor_idx, int(voxel_col), int(stixel['u'])] = 1
         label = torch.from_numpy(gt_stx_mtx).to(torch.float32)
         return label

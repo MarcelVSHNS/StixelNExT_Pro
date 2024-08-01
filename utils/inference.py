@@ -1,31 +1,35 @@
-import os.path
-
-from stixel import StixelWorld
-from dataloader import StixelData
-from models import convnext_stixel
-from stixel.utils import draw_stixels_on_image
-from typing import List, Optional
-from torchinfo import summary
-import torch
-from torch.utils.data import DataLoader
-from torchvision.io import read_image, ImageReadMode
-from PIL import Image
-from collections import OrderedDict
-import matplotlib.pyplot as plt
 import yaml
 # 0.1 Load configfile
 with open('config.yaml') as yamlfile:
     config = yaml.load(yamlfile, Loader=yaml.FullLoader)
 
+import os.path
+from stixel import StixelWorld
+from dataloader import StixelData
+from stixel.utils import draw_stixels_on_image
+from typing import List, Optional
+import torch
+from torch.utils.data import DataLoader
+from PIL import Image
+from collections import OrderedDict
+import matplotlib.pyplot as plt
+
+if config['mode'] == "segmentation":
+    from models import unet_stixel as model_fn
+elif config['mode'] == "classification":
+    from models import convnext_stixel as model_fn
+else:
+    raise ValueError("Invalid mode specified in config file!")
+
 
 def main():
-    p_threshold = 0.7
+    p_threshold = 0.101
     save_img: bool = False
     device = torch.device('cpu' if torch.cuda.is_available() else 'cpu')
-    testing_data = StixelData(data_dir="/media/marcel/Data1/Datasets/waymo-od", phase='testing', model=config['model'], return_name=True)
+    testing_data = StixelData(data_dir="/media/marcel/Data1/Datasets/waymo-od", phase='testing', return_name=True, mode=config['mode'])
     testing_dataloader = DataLoader(testing_data, batch_size=1, pin_memory=True, drop_last=True,
                                     shuffle=True)
-    model, _ = convnext_stixel()
+    model, _ = model_fn()
     model = model.to(device)
     # summary(model, input_size=(1, 3, 1280, 1920), device=torch.device('cpu'))
     if config['load_checkpoint']:
