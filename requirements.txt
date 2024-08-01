@@ -10,4 +10,5 @@ opencv-python
 Pillow
 #optuna
 einops
+scipy
 pyStixel-lib

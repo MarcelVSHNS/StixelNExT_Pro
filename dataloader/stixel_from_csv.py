@@ -4,6 +4,7 @@ import os
 import pandas as pd
 from torch.utils.data import Dataset
 from torchvision.io import read_image, ImageReadMode
+from scipy.ndimage import gaussian_filter
 from einops import rearrange
 import numpy as np
 from typing import List, Tuple, Dict, Optional
@@ -23,8 +24,8 @@ class StixelData(Dataset):
                  annotation_dir="Stixel",
                  img_dir="FRONT",
                  bin_dir="targets",
-                 transform=None,
-                 target_transform=None,
+                 transform: bool = False,
+                 target_trans_blur: bool = False,
                  return_name=False,
                  depth_anchors=False):
         self.data_dir = os.path.join(data_dir, phase)
@@ -44,7 +45,7 @@ class StixelData(Dataset):
         self.mode = mode
         self.transform = transform
         self.return_name: bool = return_name
-        self.target_transform = target_transform
+        self.target_trans_blur = target_trans_blur
 
     # 2. Implement __len()__
     def __len__(self) -> int:
@@ -62,9 +63,9 @@ class StixelData(Dataset):
         else:
             raise ValueError(f"Mode {self.mode} not recognized.")
         if self.transform:
-            feature_image = self.transform(feature_image)
-        if self.target_transform:
-            target_labels = self.target_transform(target_labels)
+            feature_image = _feature_transform_resize(feature_image, self.img_size)
+        if self.target_trans_blur and self.mode == "segmentation":
+            target_labels = _target_transform_gaussian_blur(target_labels)
         # data type needs to be like the NN layer like .to(torch.float32)
         if self.return_name:
             return feature_image, target_labels, self.sample_map[idx]
@@ -90,7 +91,7 @@ class StixelData(Dataset):
         gt_stx_mtx = np.zeros((width, out_bins, i_attr))
         for index, stixel in y_target.iterrows():
             col = stixel['u']
-            anchor, anchor_idx = find_nearest_depth(self.depth_anchors[f'{col}'], stixel['d'])
+            anchor, anchor_idx = _find_nearest_depth(self.depth_anchors[f'{col}'], stixel['d'])
             # encoding: bottom point vB, top point vT, distance d, probability P
             if i_attr == 4:
                 anchor_depth = (stixel['d'] - anchor) / d_scale
@@ -167,7 +168,7 @@ class StixelData(Dataset):
         gt_stx_mtx = np.zeros((out_bins, height, width))
         for index, stixel in y_target.iterrows():
             col: int = stixel['u']
-            anchor, anchor_idx = find_nearest_depth(self.depth_anchors[f'{col}'], stixel['d'])
+            anchor, anchor_idx = _find_nearest_depth(self.depth_anchors[f'{col}'], stixel['d'])
             for voxel_col in range(stixel['vT'], stixel['vB']):
                 gt_stx_mtx[anchor_idx, int(voxel_col), int(stixel['u'])] = 1
         label = torch.from_numpy(gt_stx_mtx).to(torch.float32)
@@ -214,7 +215,7 @@ class StixelData(Dataset):
         return stixel_world_batch
 
 
-def find_nearest_depth(column_anchors: pd.DataFrame, depth, floor=False):
+def _find_nearest_depth(column_anchors: pd.DataFrame, depth, floor=False):
     # Filter the column to get only values smaller or equal to the given value
     if floor:
         column_anchors = column_anchors[column_anchors <= depth]
@@ -229,28 +230,19 @@ def find_nearest_depth(column_anchors: pd.DataFrame, depth, floor=False):
     return nearest_value, idx
 
 
-def feature_transform_resize(x_features: torch.Tensor, target_size: Tuple[int, int]) -> torch.Tensor:
-    x_features_resized = F.interpolate(x_features.unsqueeze(0), size=target_size, mode='bilinear', align_corners=False)
+def _feature_transform_resize(x_features: torch.Tensor, target_size: Dict[str, int]) -> torch.Tensor:
+    size = (target_size['width'], target_size['height'])
+    x_features_resized = F.interpolate(x_features.unsqueeze(0), size=size, mode='bilinear', align_corners=False)
     return x_features_resized.squeeze(0)
 
 
-def overlay_original(matrix: np.array, original: np.array) -> np.array:
-    # calculate col-wise to equalize dense points
-    max_vals = np.max(matrix, axis=0)
-    normalized_matrix = np.divide(matrix, max_vals, out=np.zeros_like(matrix), where=max_vals!=0)
-    return np.maximum(normalized_matrix, original)
-
-
-def target_transform_gaussian_blur(y_target: torch.Tensor) -> torch.Tensor:
+def _target_transform_gaussian_blur(y_target: torch.Tensor, sigma: float = 0.96, normalize: bool = False) -> torch.Tensor:
     stixel_mtx = y_target.numpy()
-    # Occupancy grid [0]
-    blur_occupancy = cv2.GaussianBlur(stixel_mtx[0], (5, 7), sigmaX=1.42, sigmaY=1.21)
-    stixel_mtx[0] = overlay_original(blur_occupancy, stixel_mtx[0])
-    # Cut matrix [1]
-    for i in range(5):
-        blur_cuts = cv2.GaussianBlur(stixel_mtx[1], (3, 3), sigmaX=2.1, sigmaY=1.01)
-        stixel_mtx[1] = overlay_original(blur_cuts, stixel_mtx[1])
-
+    blurred_matrix = gaussian_filter(stixel_mtx, sigma=sigma)
+    if normalize:
+        max_vals = np.max(blurred_matrix, axis=0)
+        blurred_matrix = np.divide(blurred_matrix, max_vals, out=np.zeros_like(blurred_matrix), where=max_vals != 0)
+    stixel_mtx = np.maximum(blurred_matrix, stixel_mtx)
     return torch.from_numpy(stixel_mtx).to(torch.float32)
 
 
