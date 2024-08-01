@@ -21,14 +21,15 @@ import time
 
 
 def main():
-    """ data load
-    testing_data = StixelData(data_dir=config['data_path'], phase='validation', return_name=True, mode=config['mode'])
+    """ data load"""
+    testing_data = StixelData(data_dir=config['data_path'], phase='validation', return_name=True, mode=config['mode'],
+                              target_trans_blur=True)
     testing_dataloader = DataLoader(testing_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True,
                                     shuffle=True)
 
-    img_tensor, target_tensor, name = next(iter(testing_dataloader))"""
+    img_tensor, target_tensor, name = next(iter(testing_dataloader))
 
-    """ Data exploration 
+    """ Data exploration """
     if config['mode'] == 'classification':
         stixel_world_batch = StixelData.revert_class(target_tensor, testing_data.depth_anchors,
                                                      img_name=name,
@@ -46,7 +47,7 @@ def main():
     stixel_path = os.path.join(config['data_path'], 'validation', 'Stixel', stixel_world.image_name + '.csv')
     stixel_world_og: StixelWorld = StixelWorld.read(stixel_path)
     stixel_img = draw_stixels_on_image(image, stixel_world_og.stixel)
-    stixel_img.show()"""
+    stixel_img.show()
 
     """ Model exploration """
     # model, _ = unet()
