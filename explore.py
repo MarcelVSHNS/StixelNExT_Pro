@@ -50,9 +50,9 @@ def main():
     stixel_img.show()"""
 
     """ Model exploration """
-    # model, _ = unet()
+    model, _ = unet_stixel()
     # model = ConvNeXt(in_channels=3, c=60, depths_b=[3, 3, 27, 3])
-    model, _ = convnext_stixel()
+    # model, _ = convnext_stixel()
 
     input_shape = (1, 3, 1280, 1920)
     # x = torch.randn(input_shape)
