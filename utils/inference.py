@@ -8,6 +8,8 @@ from stixel import StixelWorld
 from dataloader import StixelData
 from stixel.utils import draw_stixels_on_image
 from typing import List, Optional
+import numpy as np
+import open3d as o3d
 import torch
 from torch.utils.data import DataLoader
 from PIL import Image
@@ -15,7 +17,7 @@ from collections import OrderedDict
 import matplotlib.pyplot as plt
 
 if config['mode'] == "segmentation":
-    from models import unet_stixel as model_fn
+    from models import convnext_stixel_segmentation as model_fn
 elif config['mode'] == "classification":
     from models import convnext_stixel as model_fn
 else:
@@ -23,8 +25,9 @@ else:
 
 
 def main():
-    p_threshold = 0.72
+    p_threshold = 0.84
     save_img: bool = False
+    show_3d: bool = True
     device = torch.device('cpu' if torch.cuda.is_available() else 'cpu')
     testing_data = StixelData(data_dir="/media/marcel/Data1/Datasets/waymo-od", phase='testing', return_name=True, mode=config['mode'])
     testing_dataloader = DataLoader(testing_data, batch_size=1, pin_memory=True, drop_last=True,
@@ -67,8 +70,8 @@ def main():
         raise ValueError('Invalid mode!')
     stixel_world: StixelWorld = stixel_world_batch[0]
     image = Image.open(os.path.join("/media/marcel/Data1/Datasets/waymo-od", "testing", "FRONT", f"{name[0]}.png"))
-
-    stixel_img = draw_stixels_on_image(image, stixel_world.stixel)
+    stixel_world.image = image
+    stixel_img = draw_stixels_on_image(stixel_world.image, stixel_world.stixel)
     # stixel_img.show(title="prediction")
 
     # Ground Truth
@@ -91,6 +94,17 @@ def main():
         stixel_img.save(os.path.join("results", f"Stixel_{stixel_world.image_name}.png"))
         stixel_world.save(os.path.join("results"))
         print(f"Image and Stixel: {stixel_world.image_name} saved.")
+
+    if show_3d:
+        with open('utils/waymo_calib.yaml') as yaml_file:
+            calib = yaml.load(yaml_file, Loader=yaml.FullLoader)
+        stixel_world.camera_mtx = np.array(calib['K'])
+        stxl_wrld_pts, colors = stixel_world.get_pseudo_coordinates()
+
+        point_cloud = o3d.geometry.PointCloud()
+        point_cloud.points = o3d.utility.Vector3dVector(stxl_wrld_pts)
+        point_cloud.colors = o3d.utility.Vector3dVector(colors)
+        o3d.visualization.draw_geometries([point_cloud])
 
 
 if __name__ == "__main__":
