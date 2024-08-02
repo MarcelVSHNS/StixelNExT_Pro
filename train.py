@@ -17,7 +17,7 @@ from engine import train_one_epoch, evaluate, EarlyStopping
 from dataloader import StixelData
 
 if config['mode'] == "segmentation":
-    from models import convnext_stixel_segmentation as model_fn
+    from models import unet_stixel as model_fn
     from losses import StixelVoxelLoss as StixelLoss
 elif config['mode'] == "classification":
     from models import convnext_stixel as model_fn

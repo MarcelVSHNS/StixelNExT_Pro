@@ -29,7 +29,7 @@ def main():
 
     img_tensor, target_tensor, name = next(iter(testing_dataloader))
 
-    """ Data exploration """
+    """ Data exploration 
     if config['mode'] == 'classification':
         stixel_world_batch = StixelData.revert_class(target_tensor, testing_data.depth_anchors,
                                                      img_name=name,
@@ -47,12 +47,12 @@ def main():
     stixel_path = os.path.join(config['data_path'], 'validation', 'Stixel', stixel_world.image_name + '.csv')
     stixel_world_og: StixelWorld = StixelWorld.read(stixel_path)
     stixel_img = draw_stixels_on_image(image, stixel_world_og.stixel)
-    stixel_img.show()
+    stixel_img.show()"""
 
     """ Model exploration """
     # model, _ = unet()
     # model = ConvNeXt(in_channels=3, c=60, depths_b=[3, 3, 27, 3])
-    model, _ = convnext_stixel_segmentation()
+    model, _ = convnext_stixel()
 
     input_shape = (1, 3, 1280, 1920)
     # x = torch.randn(input_shape)
