@@ -23,10 +23,10 @@ else:
 
 
 def main():
-    p_threshold = 0.30
+    p_threshold = 0.72
     save_img: bool = False
     device = torch.device('cpu' if torch.cuda.is_available() else 'cpu')
-    testing_data = StixelData(data_dir="/media/marcel/Data1/Datasets/waymo-od", phase='training', return_name=True, mode=config['mode'])
+    testing_data = StixelData(data_dir="/media/marcel/Data1/Datasets/waymo-od", phase='testing', return_name=True, mode=config['mode'])
     testing_dataloader = DataLoader(testing_data, batch_size=1, pin_memory=True, drop_last=True,
                                     shuffle=True)
     model, _ = model_fn()
@@ -51,21 +51,27 @@ def main():
     output = output.cpu().detach()
     test = output[0, 0:3, :, 110].numpy()
     test_targ = target_tensor[0, 0:3, :, 110].numpy()
-    stixel_world_batch = StixelData.revert_class(output, testing_data.depth_anchors,
-                                                 img_name=name,
-                                                 img_size=testing_data.img_size,
-                                                 prob=p_threshold)
+    if config['mode'] == "classification":
+        stixel_world_batch = StixelData.revert_class(output, testing_data.depth_anchors,
+                                                     img_name=name,
+                                                     img_size=testing_data.img_size,
+                                                     prob=p_threshold)
+        stixel_world_batch_targ = StixelData.revert_class(target_tensor, testing_data.depth_anchors,
+                                                          img_name=name,
+                                                          img_size=testing_data.img_size,
+                                                          prob=p_threshold)
+    elif config['mode'] == "segmentation":
+        stixel_world_batch = StixelData.revert_segm(output, testing_data.depth_anchors, img_name=name, prob=p_threshold)
+        stixel_world_batch_targ = StixelData.revert_segm(target_tensor, testing_data.depth_anchors, img_name=name, prob=p_threshold)
+    else:
+        raise ValueError('Invalid mode!')
     stixel_world: StixelWorld = stixel_world_batch[0]
-    image = Image.open(os.path.join("/media/marcel/Data1/Datasets/waymo-od", "training", "FRONT", f"{name[0]}.png"))
+    image = Image.open(os.path.join("/media/marcel/Data1/Datasets/waymo-od", "testing", "FRONT", f"{name[0]}.png"))
 
     stixel_img = draw_stixels_on_image(image, stixel_world.stixel)
     # stixel_img.show(title="prediction")
 
     # Ground Truth
-    stixel_world_batch_targ = StixelData.revert_class(target_tensor, testing_data.depth_anchors,
-                                                      img_name=name,
-                                                      img_size=testing_data.img_size,
-                                                      prob=p_threshold)
     stixel_world_targ: StixelWorld = stixel_world_batch_targ[0]
     stixel_img_targ = draw_stixels_on_image(image, stixel_world_targ.stixel)
     # stixel_img_targ.show(title="ground_truth")
@@ -77,6 +83,7 @@ def main():
         ax.set_title(titel)
         ax.axis("off")
         ax.grid(False)
+        fig.suptitle(f"@ P={p_threshold}", fontsize=16)
     plt.show()
 
     if save_img:
