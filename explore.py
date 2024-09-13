@@ -22,12 +22,12 @@ import time
 
 def main():
     """ data load"""
-    testing_data = StixelData(data_dir=config['data_path'], phase='validation', return_name=True, mode=config['mode'],
+    testing_data = StixelData(data_dir=config['data_path'], phase='validation', mode=config['mode'],
                               target_trans_blur=True)
     testing_dataloader = DataLoader(testing_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True,
                                     shuffle=True)
 
-    img_tensor, target_tensor, name = next(iter(testing_dataloader))
+    img_tensor, target_tensor, stxl_wrlds = next(iter(testing_dataloader))
 
     """ Data exploration 
     if config['mode'] == 'classification':
