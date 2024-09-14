@@ -43,6 +43,7 @@ class StixelData(Dataset):
     # 3. Implement __getitem()__
     def __getitem__(self, idx):
         stxl_wrld: stx.StixelWorld = stx.read(os.path.join(self.data_dir ,self.sample_map[idx]))
+        self.img_size = {'height': 1280, 'width': 1920}
         img = np.array(Image.open(io.BytesIO(stxl_wrld.image)))
         feature_image: torch.Tensor = torch.from_numpy(img).to(torch.float32)
         target_labels = stx.convert_to_matrix(stxl_wrld)
@@ -57,8 +58,8 @@ class StixelData(Dataset):
         if self.target_trans_blur and self.mode == "segmentation":
             target_labels = _target_transform_gaussian_blur(target_labels)
         # delete ground truth Stixel from object
-        stxl_wrld.stixel = []
-        return feature_image, target_labels, stxl_wrld
+        # del stxl_wrld.stixel[:]
+        return feature_image, target_labels, os.path.join(self.data_dir ,self.sample_map[idx])
 
     def _classification_target_label(self, y_target: np.array,
                                      out_bins: int = 12,
@@ -69,16 +70,16 @@ class StixelData(Dataset):
                                      ) -> torch.tensor:
         d_scale = d_scale * 0.1
         # img_path,x,yT,yB,class,depth: prepare data like normalization and scaling
-        y_target['u'] = (y_target['u'] // u_scale).astype(int)                              # u as index
-        y_target['vT'] = (y_target['vT'] / self.img_size['height']).astype(float)           # vT
-        y_target['vB'] = (y_target['vB'] / self.img_size['height']).astype(float)           # vB
+        y_target['u'] //= u_scale                           # u as index
+        y_target['vT'] /= self.img_size['height']         # vT
+        y_target['vB'] /= self.img_size['height']        # vB
         # inverted depth and scaled over 100 m
         # y_target['d'] = 1 - y_target['d'] / d_scale
-        width = int(self.img_size['width'] / u_scale)
-        y_target = y_target.sort_values(by='vT', ascending=False)
+        width = self.img_size['width'] // u_scale
+        y_target = np.sort(y_target, order='vT')[::-1]
 
         gt_stx_mtx = np.zeros((width, out_bins, i_attr))
-        for index, stixel in y_target.iterrows():
+        for stixel in y_target:
             col = stixel['u']
             anchor, anchor_idx = _find_nearest_depth(self.depth_anchors[f'{col}'], stixel['d'])
             # encoding: bottom point vB, top point vT, distance d, probability P
@@ -106,7 +107,7 @@ class StixelData(Dataset):
     @staticmethod
     def revert_class(prediction: torch.Tensor,
                      anchors: pd.DataFrame,
-                     stxl_wrlds: List[StixelWorld],
+                     stxl_wrld_paths: List[str],
                      prob: float = 0.9,
                      u_scale: int = 8,
                      d_scale: float = 50.0,
@@ -116,8 +117,10 @@ class StixelData(Dataset):
         d_scale = d_scale * 0.1
         pred_np = prediction.numpy()
         stixel_world_batch = []
-        for batch, stxl_wrld in zip(pred_np, stxl_wrlds):
+        for batch, path in zip(pred_np, stxl_wrld_paths):
             # print(f"Batch1: {batch.shape}")
+            stxl_wrld = stx.read(path)
+            del stxl_wrld.stixel[:]
             columns = rearrange(batch, "a n u -> u n a")
             for u in range(len(columns)):
                 # print(f"Col1: {column.shape}")
@@ -151,16 +154,16 @@ class StixelData(Dataset):
                                    u_scale: int = 8,
                                    v_scale: int = 8
                                    ) -> torch.tensor:
-        y_target['u'] = (y_target['u'] // u_scale).astype(int)
-        y_target['vT'] = (y_target['vT'] // v_scale).astype(int)
-        y_target['vB'] = (y_target['vB'] // v_scale).astype(int)
-        width = int(self.img_width / u_scale)
-        height = int(self.img_height / v_scale)
+        y_target['u'] //= u_scale
+        y_target['vT'] //= v_scale
+        y_target['vB'] //= v_scale
+        width = self.img_size['width'] // u_scale
+        height = self.img_size['height'] // v_scale
 
         # shape: depth, height, width
         gt_stx_mtx = np.zeros((out_bins, height, width))
-        for index, stixel in y_target.iterrows():
-            col: int = stixel['u']
+        for stixel in y_target:
+            col = stixel['u']
             anchor, anchor_idx = _find_nearest_depth(self.depth_anchors[f'{col}'], stixel['d'])
             for voxel_col in range(stixel['vT'], stixel['vB']):
                 gt_stx_mtx[anchor_idx, int(voxel_col), int(stixel['u'])] = 1
@@ -170,15 +173,17 @@ class StixelData(Dataset):
     @staticmethod
     def revert_segm(prediction: torch.Tensor,
                     anchors: pd.DataFrame,
-                    stxl_wrlds: List[StixelWorld],
+                    stxl_wrlds_paths: List[str],
                     prob: float = 0.9,
                     u_scale: int = 8,
                     v_scale: int = 8
                     ) -> List[StixelWorld]:
         pred_np = prediction.numpy()
         stixel_world_batch = []
-        for batch, stxl_wrld in zip(pred_np, stxl_wrlds):
+        for batch, path in zip(pred_np, stxl_wrlds_paths):
             # print(f"Batch1: {batch.shape}")
+            stxl_wrld = stx.read(path)
+            del stxl_wrld.stixel[:]
             columns = rearrange(batch, "d h w -> w d h")
             for u in range(len(columns)):
                 for d in range(len(columns[u])):
