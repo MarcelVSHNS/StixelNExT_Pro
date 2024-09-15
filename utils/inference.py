@@ -28,9 +28,9 @@ else:
 def main():
     p_threshold = 0.84
     save_img: bool = False
-    show_3d: bool = True
+    show_3d: bool = False
     device = torch.device('cpu' if torch.cuda.is_available() else 'cpu')
-    testing_data = StixelData(data_dir="/media/marcel/Data1/Datasets/waymo-od", phase='testing', return_name=True, mode=config['mode'])
+    testing_data = StixelData(data_dir="dataset/waymo-od_tiny_new", phase='validation', mode=config['mode'])
     testing_dataloader = DataLoader(testing_data, batch_size=1, pin_memory=True, drop_last=True,
                                     shuffle=True)
     model, _ = model_fn()
