@@ -14,8 +14,7 @@ from losses import StixelObjectLoss, StixelVoxelLoss
 from dataloader import StixelData
 from torch.utils.data import DataLoader
 from PIL import Image
-from stixel import StixelWorld
-from stixel.utils import draw_stixels_on_image
+import stixel as stx
 from einops import rearrange
 import time
 
@@ -29,36 +28,35 @@ def main():
 
     img_tensor, target_tensor, stxl_wrld_paths = next(iter(testing_dataloader))
 
-    """ Data exploration 
+    """ Data exploration """
     if config['mode'] == 'classification':
-        stixel_world_batch = StixelData.revert_class(target_tensor, testing_data.depth_anchors,
-                                                     img_name=name,
-                                                     img_size=testing_data.img_size)
+        stixel_world_batch = StixelData.revert_class(target_tensor,
+                                                     anchors=testing_data.depth_anchors,
+                                                     stxl_wrld_paths=stxl_wrld_paths)
     elif config['mode'] == 'segmentation':
-        stixel_world_batch = StixelData.revert_segm(target_tensor, testing_data.depth_anchors, img_name=name)
+        stixel_world_batch = StixelData.revert_segm(target_tensor,
+                                                    anchors=testing_data.depth_anchors,
+                                                    stxl_wrld_paths=stxl_wrld_paths)
     else:
         raise ValueError('Invalid mode!')
-    stixel_world: StixelWorld = stixel_world_batch[0]
-    image_path = os.path.join(config['data_path'], 'validation', 'FRONT', stixel_world.image_name + '.png')
-    image: Image = Image.open(image_path)
-    stixel_img = draw_stixels_on_image(image, stixel_world.stixel)
+    stixel_world: stx.StixelWorld = stixel_world_batch[0]
+    stixel_img = stx.draw_stixels_on_image(stixel_world)
     stixel_img.show()
     # original
-    stixel_path = os.path.join(config['data_path'], 'validation', 'Stixel', stixel_world.image_name + '.csv')
-    stixel_world_og: StixelWorld = StixelWorld.read(stixel_path)
-    stixel_img = draw_stixels_on_image(image, stixel_world_og.stixel)
-    stixel_img.show()"""
+    stixel_world_og: stx.StixelWorld = stx.read(stxl_wrld_paths[0])
+    stixel_img = stx.draw_stixels_on_image(stixel_world_og)
+    stixel_img.show()
 
-    """ Model exploration """
+    """ Model exploration 
     model, _ = unet_stixel()
     # model = ConvNeXt(in_channels=3, c=60, depths_b=[3, 3, 27, 3])
-    # model, _ = convnext_stixel()
+    # model, _ = convnext_stixel() 
 
     input_shape = (1, 3, 1280, 1920)
     # x = torch.randn(input_shape)
     # output = model(x)
     summary(model, input_size=input_shape, device=torch.device('cpu'))
-    # print(f"Output shape: {output.shape}")
+    # print(f"Output shape: {output.shape}") """
 
     """ Loss exploration 
     inputs = torch.rand(1, 64, 160, 240)

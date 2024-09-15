@@ -7,7 +7,7 @@ def train_one_epoch(dataloader, model, loss_fn, optimizer, device, writer=None) 
     train_loss = 0.0
     model.train()
     # for every batch_sized chunk of data ...
-    for batch_idx, (samples, targets) in enumerate(dataloader):
+    for batch_idx, (samples, targets, _) in enumerate(dataloader):
         # copy data to the computing device (normally the GPU)
         samples = samples.to(device)
         targets = targets.to(device)
@@ -38,7 +38,7 @@ def evaluate(dataloader, model, loss_fn, device, writer=None):
     model.eval()
     eval_loss = 0
     with torch.no_grad():
-        for (samples, targets) in dataloader:
+        for (samples, targets, _) in dataloader:
             samples = samples.to(device)
             targets = targets.to(device)
             outputs = model(samples)
