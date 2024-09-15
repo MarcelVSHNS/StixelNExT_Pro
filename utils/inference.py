@@ -4,9 +4,8 @@ with open('config.yaml') as yamlfile:
     config = yaml.load(yamlfile, Loader=yaml.FullLoader)
 
 import os.path
-from stixel import StixelWorld
+import stixel as stx
 from dataloader import StixelData
-from stixel.utils import draw_stixels_on_image
 from typing import List, Optional
 import numpy as np
 import open3d as o3d
@@ -18,8 +17,10 @@ import matplotlib.pyplot as plt
 
 if config['mode'] == "segmentation":
     from models import convnext_stixel_segmentation as model_fn
+    from dataloader import revert_segm as revert_fn
 elif config['mode'] == "classification":
     from models import convnext_stixel as model_fn
+    from dataloader import revert_class as revert_fn
 else:
     raise ValueError("Invalid mode specified in config file!")
 
@@ -46,7 +47,7 @@ def main():
         print("Loaded checkpoint '{}'".format(config['load_checkpoint']))
 
     # random sample
-    img_tensor, target_tensor, name = next(iter(testing_dataloader))
+    img_tensor, target_tensor, stxl_wrld_paths = next(iter(testing_dataloader))
     img_tensor = img_tensor.to(device)
     # inference
     output = model(img_tensor)
@@ -54,29 +55,23 @@ def main():
     output = output.cpu().detach()
     test = output[0, 0:3, :, 110].numpy()
     test_targ = target_tensor[0, 0:3, :, 110].numpy()
-    if config['mode'] == "classification":
-        stixel_world_batch = StixelData.revert_class(output, testing_data.depth_anchors,
-                                                     img_name=name,
-                                                     img_size=testing_data.img_size,
-                                                     prob=p_threshold)
-        stixel_world_batch_targ = StixelData.revert_class(target_tensor, testing_data.depth_anchors,
-                                                          img_name=name,
-                                                          img_size=testing_data.img_size,
-                                                          prob=p_threshold)
-    elif config['mode'] == "segmentation":
-        stixel_world_batch = StixelData.revert_segm(output, testing_data.depth_anchors, img_name=name, prob=p_threshold)
-        stixel_world_batch_targ = StixelData.revert_segm(target_tensor, testing_data.depth_anchors, img_name=name, prob=p_threshold)
-    else:
-        raise ValueError('Invalid mode!')
-    stixel_world: StixelWorld = stixel_world_batch[0]
-    image = Image.open(os.path.join("/media/marcel/Data1/Datasets/waymo-od", "testing", "FRONT", f"{name[0]}.png"))
-    stixel_world.image = image
-    stixel_img = draw_stixels_on_image(stixel_world.image, stixel_world.stixel)
+    stixel_world_batch = revert_fn(prediction=output,
+                                   anchors=testing_data.depth_anchors,
+                                   stxl_wrld_paths=stxl_wrld_paths,
+                                   prob=p_threshold)
+    stixel_world_batch_targ = revert_fn(prediction=target_tensor,
+                                        anchors=testing_data.depth_anchors,
+                                        stxl_wrld_paths=stxl_wrld_paths,
+                                        prob=p_threshold)
+
+
+    stixel_world: stx.StixelWorld = stixel_world_batch[0]
+    stixel_img = stx.draw_stixels_on_image(stixel_world)
     # stixel_img.show(title="prediction")
 
     # Ground Truth
-    stixel_world_targ: StixelWorld = stixel_world_batch_targ[0]
-    stixel_img_targ = draw_stixels_on_image(image, stixel_world_targ.stixel)
+    stixel_world_targ: stx.StixelWorld = stixel_world_batch_targ[0]
+    stixel_img_targ = stx.draw_stixels_on_image(stixel_world_targ)
     # stixel_img_targ.show(title="ground_truth")
 
     fig, axes = plt.subplots(2, 1, figsize=(10, 15), gridspec_kw={"hspace": 0, "wspace": 0})
@@ -91,20 +86,11 @@ def main():
 
     if save_img:
         os.makedirs("results", exist_ok=True)
-        stixel_img.save(os.path.join("results", f"Stixel_{stixel_world.image_name}.png"))
-        stixel_world.save(os.path.join("results"))
-        print(f"Image and Stixel: {stixel_world.image_name} saved.")
+        stixel_img.save(os.path.join("results", f"Stixel_{stixel_world.context.calibration.img_name}"))
+        print(f"Image: {stixel_world.context.calibration.img_name} saved.")
 
     if show_3d:
-        with open('utils/waymo_calib.yaml') as yaml_file:
-            calib = yaml.load(yaml_file, Loader=yaml.FullLoader)
-        stixel_world.camera_mtx = np.array(calib['K'])
-        stxl_wrld_pts, colors = stixel_world.get_pseudo_coordinates()
-
-        point_cloud = o3d.geometry.PointCloud()
-        point_cloud.points = o3d.utility.Vector3dVector(stxl_wrld_pts)
-        point_cloud.colors = o3d.utility.Vector3dVector(colors)
-        o3d.visualization.draw_geometries([point_cloud])
+        stx.draw_stixels_in_3d(stixel_world)
 
 
 if __name__ == "__main__":

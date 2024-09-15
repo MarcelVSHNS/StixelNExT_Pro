@@ -11,7 +11,8 @@ from typing import List, Tuple, Dict, Optional
 import stixel as stx
 import torch.nn.functional as F
 
-from stixel import Stixel, StixelWorld
+from stixel import Stixel
+from stixel.stixel_world_pb2 import StixelWorld
 import datetime
 
 
@@ -43,9 +44,10 @@ class StixelData(Dataset):
     # 3. Implement __getitem()__
     def __getitem__(self, idx):
         stxl_wrld: stx.StixelWorld = stx.read(os.path.join(self.data_dir ,self.sample_map[idx]))
-        self.img_size = {'height': 1280, 'width': 1920}
+        self.img_size = {'height': stxl_wrld.context.calibration.height, 'width': stxl_wrld.context.calibration.width}
         img = np.array(Image.open(io.BytesIO(stxl_wrld.image)))
         feature_image: torch.Tensor = torch.from_numpy(img).to(torch.float32)
+        feature_image = rearrange(feature_image, "h w c -> c h w")
         target_labels = stx.convert_to_matrix(stxl_wrld)
         if self.mode == "classification":
             target_labels = self._classification_target_label(target_labels, out_bins=self.depth_anchors.shape[0])
@@ -69,18 +71,19 @@ class StixelData(Dataset):
                                      shadowing: bool = False
                                      ) -> torch.tensor:
         d_scale = d_scale * 0.1
+        y_target = pd.DataFrame(y_target)
         # img_path,x,yT,yB,class,depth: prepare data like normalization and scaling
-        y_target['u'] //= u_scale                           # u as index
-        y_target['vT'] /= self.img_size['height']         # vT
-        y_target['vB'] /= self.img_size['height']        # vB
+        y_target['u'] = (y_target['u'] // u_scale).astype(int)  # u as index
+        y_target['vT'] = (y_target['vT'] / self.img_size['height']).astype(float)  # vT
+        y_target['vB'] = (y_target['vB'] / self.img_size['height']).astype(float)  # vB
         # inverted depth and scaled over 100 m
         # y_target['d'] = 1 - y_target['d'] / d_scale
         width = self.img_size['width'] // u_scale
-        y_target = np.sort(y_target, order='vT')[::-1]
+        y_target = y_target.sort_values(by='vT', ascending=False)
 
         gt_stx_mtx = np.zeros((width, out_bins, i_attr))
-        for stixel in y_target:
-            col = stixel['u']
+        for index, stixel in y_target.iterrows():
+            col = int(stixel['u'])
             anchor, anchor_idx = _find_nearest_depth(self.depth_anchors[f'{col}'], stixel['d'])
             # encoding: bottom point vB, top point vT, distance d, probability P
             if i_attr == 4:
@@ -104,51 +107,6 @@ class StixelData(Dataset):
         label = rearrange(label, "w n a -> a n w")
         return label
 
-    @staticmethod
-    def revert_class(prediction: torch.Tensor,
-                     anchors: pd.DataFrame,
-                     stxl_wrld_paths: List[str],
-                     prob: float = 0.9,
-                     u_scale: int = 8,
-                     d_scale: float = 50.0,
-                     four_attr: bool = False
-                     ) -> List[StixelWorld]:
-        """ extract stixel information from prediction """
-        d_scale = d_scale * 0.1
-        pred_np = prediction.numpy()
-        stixel_world_batch = []
-        for batch, path in zip(pred_np, stxl_wrld_paths):
-            # print(f"Batch1: {batch.shape}")
-            stxl_wrld = stx.read(path)
-            del stxl_wrld.stixel[:]
-            columns = rearrange(batch, "a n u -> u n a")
-            for u in range(len(columns)):
-                # print(f"Col1: {column.shape}")
-                for n in range(len(columns[u])):
-                    # print(f"candidate1: {candidate.shape}")
-                    if four_attr:
-                        if columns[u][n][3] >= prob:
-                            stxl = Stixel()
-                            stxl.u = int(u * u_scale)
-                            stxl.vT = int(columns[u][n][1] * stxl_wrld.context.calibration.height)
-                            stxl.vB = int(columns[u][n][0] * stxl_wrld.context.calibration.height)
-                            stxl.d = columns[u][n][2] * d_scale + anchors[f'{u}'][n]
-                            stxl.confidence = columns[u][n][3]
-                            stxl.width = u_scale
-                            stxl_wrld.stixel.append(stxl)
-                    else:
-                        if columns[u][n][2] >= prob:
-                            stxl = Stixel()
-                            stxl.u = int(u * u_scale)
-                            stxl.vT = int(columns[u][n][1] * stxl_wrld.context.calibration.height)
-                            stxl.vB = int(columns[u][n][0] * stxl_wrld.context.calibration.height)
-                            stxl.d = anchors[f'{u}'][n]
-                            stxl.confidence = columns[u][n][2]
-                            stxl.width = u_scale
-                            stxl_wrld.stixel.append(stxl)
-            stixel_world_batch.append(stxl_wrld)
-        return stixel_world_batch
-
     def _segmentation_target_label(self, y_target: np.array,
                                    out_bins: int = 192,
                                    u_scale: int = 8,
@@ -170,49 +128,95 @@ class StixelData(Dataset):
         label = torch.from_numpy(gt_stx_mtx).to(torch.float32)
         return label
 
-    @staticmethod
-    def revert_segm(prediction: torch.Tensor,
-                    anchors: pd.DataFrame,
-                    stxl_wrlds_paths: List[str],
-                    prob: float = 0.9,
-                    u_scale: int = 8,
-                    v_scale: int = 8
-                    ) -> List[StixelWorld]:
-        pred_np = prediction.numpy()
-        stixel_world_batch = []
-        for batch, path in zip(pred_np, stxl_wrlds_paths):
-            # print(f"Batch1: {batch.shape}")
-            stxl_wrld = stx.read(path)
-            del stxl_wrld.stixel[:]
-            columns = rearrange(batch, "d h w -> w d h")
-            for u in range(len(columns)):
-                for d in range(len(columns[u])):
-                    stixel_start = 0
-                    in_stixel = False
-                    stixel_prob = []
-                    for v in range(len(columns[u][d])):
-                        if in_stixel:
-                            if columns[u][d][v] < prob:
-                                stxl = Stixel()
-                                stxl.u = int(u * u_scale)
-                                stxl.vT = int(stixel_start * v_scale)
-                                stxl.vB = int(v * v_scale)
-                                stxl.d = anchors[f'{u}'][d]
-                                stxl.confidence = sum(stixel_prob) / len(stixel_prob)
-                                stxl.width = u_scale
-                                stxl_wrld.stixel.append(stxl)
-                                in_stixel = False
-                            else:
-                                stixel_prob.append(columns[u][d][v])
+
+def revert_class(prediction: torch.Tensor,
+                 anchors: pd.DataFrame,
+                 stxl_wrld_paths: List[str],
+                 prob: float = 0.9,
+                 u_scale: int = 8,
+                 d_scale: float = 50.0,
+                 four_attr: bool = False
+                 ) -> List[StixelWorld]:
+    """ extract stixel information from prediction """
+    d_scale = d_scale * 0.1
+    pred_np = prediction.numpy()
+    stixel_world_batch = []
+    for batch, path in zip(pred_np, stxl_wrld_paths):
+        # print(f"Batch1: {batch.shape}")
+        stxl_wrld = stx.read(path)
+        del stxl_wrld.stixel[:]
+        img_height = stxl_wrld.context.calibration.height
+        columns = rearrange(batch, "a n u -> u n a")
+        for u in range(len(columns)):
+            # print(f"Col1: {column.shape}")
+            for n in range(len(columns[u])):
+                # print(f"candidate1: {candidate.shape}")
+                if four_attr:
+                    if columns[u][n][3] >= prob:
+                        stxl = Stixel()
+                        stxl.u = int(u * u_scale)
+                        stxl.vT = int(columns[u][n][1] * img_height)
+                        stxl.vB = int(columns[u][n][0] * img_height)
+                        stxl.d = columns[u][n][2] * d_scale + anchors[f'{u}'][n]
+                        stxl.confidence = columns[u][n][3]
+                        stxl.width = u_scale
+                        stxl_wrld.stixel.append(stxl)
+                else:
+                    if columns[u][n][2] >= prob:
+                        stxl = Stixel()
+                        stxl.u = int(u * u_scale)
+                        stxl.vT = int(columns[u][n][1] * img_height +1)
+                        stxl.vB = int(columns[u][n][0] * img_height +1)
+                        stxl.d = anchors[f'{u}'][n]
+                        stxl.confidence = columns[u][n][2]
+                        stxl.width = u_scale
+                        stxl_wrld.stixel.append(stxl)
+        stixel_world_batch.append(stxl_wrld)
+    return stixel_world_batch
+
+
+def revert_segm(prediction: torch.Tensor,
+                anchors: pd.DataFrame,
+                stxl_wrld_paths: List[str],
+                prob: float = 0.9,
+                u_scale: int = 8,
+                v_scale: int = 8
+                ) -> List[StixelWorld]:
+    pred_np = prediction.numpy()
+    stixel_world_batch = []
+    for batch, path in zip(pred_np, stxl_wrld_paths):
+        # print(f"Batch1: {batch.shape}")
+        stxl_wrld = stx.read(path)
+        del stxl_wrld.stixel[:]
+        columns = rearrange(batch, "d h w -> w d h")
+        for u in range(len(columns)):
+            for d in range(len(columns[u])):
+                stixel_start = 0
+                in_stixel = False
+                stixel_prob = []
+                for v in range(len(columns[u][d])):
+                    if in_stixel:
+                        if columns[u][d][v] < prob:
+                            stxl = Stixel()
+                            stxl.u = int(u * u_scale)
+                            stxl.vT = int(stixel_start * v_scale)
+                            stxl.vB = int(v * v_scale)
+                            stxl.d = anchors[f'{u}'][d]
+                            stxl.confidence = sum(stixel_prob) / len(stixel_prob)
+                            stxl.width = u_scale
+                            stxl_wrld.stixel.append(stxl)
+                            in_stixel = False
                         else:
-                            if columns[u][d][v] >= prob:
-                                stixel_start = v
-                                stixel_prob.append(columns[u][d][v])
-                                in_stixel = True
-                            else:
-                                pass
-            stixel_world_batch.append(stxl_wrld)
-        return stixel_world_batch
+                            stixel_prob.append(columns[u][d][v])
+                    else:
+                        if columns[u][d][v] >= prob:
+                            stixel_start = v
+                            stixel_prob.append(columns[u][d][v])
+                            in_stixel = True
+                        else:
+                            pass
+        stixel_world_batch.append(stxl_wrld)
+    return stixel_world_batch
 
 
 def _find_nearest_depth(column_anchors: pd.DataFrame, depth, floor=False):
