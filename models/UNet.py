@@ -139,7 +139,7 @@ class UnetHead(nn.Module):
         return self.activation(x)
 
 
-def unet_stixel() -> Tuple[UNet, Dict[str, Any]]:
+def get_model() -> Tuple[UNet, Dict[str, Any]]:
     with open('models/unet-config.yaml') as file:
         config = yaml.load(file, Loader=yaml.FullLoader)
     c_width: int = config['widths_c']

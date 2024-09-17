@@ -1,3 +1,2 @@
-from .UNet import unet_stixel
-from .ConvNeXt import convnext
-from .ConvNeXt_pretrained import convnext_stixel, convnext_stixel_segmentation
+from .UNet import get_model
+from .ConvNeXt_pretrained import convnext_stixel, get_model

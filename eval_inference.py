@@ -18,7 +18,7 @@ from dataloader import StixelData
 import stixel as stx
 
 if config['mode'] == "segmentation":
-    from models import unet_stixel as model_fn
+    from models import get_model as model_fn
     from dataloader import revert_segm as revert_fn
 elif config['mode'] == "classification":
     from models import convnext_stixel as model_fn
