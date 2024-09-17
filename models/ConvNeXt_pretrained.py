@@ -87,7 +87,7 @@ def convnext_stixel(weights: Optional[ConvNeXt_Tiny_Weights] = None, **kwargs: A
     return model, model_params
 
 
-def convnext_stixel_segmentation(weights: Optional[ConvNeXt_Tiny_Weights] = None, **kwargs: Any) -> Tuple[ConvNeXt, Dict[str, Any]]:
+def get_model(weights: Optional[ConvNeXt_Tiny_Weights] = None, **kwargs: Any) -> Tuple[ConvNeXt, Dict[str, Any]]:
     with open('models/convnext-config.yaml') as file:
         config = yaml.load(file, Loader=yaml.FullLoader)
     c: int = config['widths_c']

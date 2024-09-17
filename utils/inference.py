@@ -1,3 +1,6 @@
+"""
+TODO: write function to find sweetspot prob_thres to get stixel
+"""
 import yaml
 # 0.1 Load configfile
 with open('config.yaml') as yamlfile:
@@ -16,7 +19,7 @@ from collections import OrderedDict
 import matplotlib.pyplot as plt
 
 if config['mode'] == "segmentation":
-    from models import convnext_stixel_segmentation as model_fn
+    from models import get_model as model_fn
     from dataloader import revert_segm as revert_fn
 elif config['mode'] == "classification":
     from models import convnext_stixel as model_fn

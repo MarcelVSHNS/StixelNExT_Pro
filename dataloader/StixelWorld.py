@@ -122,6 +122,8 @@ class StixelData(Dataset):
         gt_stx_mtx = np.zeros((out_bins, height, width))
         for stixel in y_target:
             col = stixel['u']
+            if col < 0:
+                continue
             anchor, anchor_idx = _find_nearest_depth(self.depth_anchors[f'{col}'], stixel['d'])
             for voxel_col in range(stixel['vT'], stixel['vB']):
                 gt_stx_mtx[anchor_idx, int(voxel_col), int(stixel['u'])] = 1

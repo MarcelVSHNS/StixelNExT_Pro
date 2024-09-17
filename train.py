@@ -17,9 +17,11 @@ from engine import train_one_epoch, evaluate, EarlyStopping
 from dataloader import StixelData
 
 if config['mode'] == "segmentation":
-    from models import unet_stixel as model_fn
+    import models.UNet as model_file
+    from models import get_model as model_fn
     from losses import StixelVoxelLoss as StixelLoss
 elif config['mode'] == "classification":
+    import models.ConvNeXt_pretrained as model_file
     from models import convnext_stixel as model_fn
     from losses import StixelObjectLoss as StixelLoss
 else:
@@ -98,7 +100,7 @@ def train(rank, world_size):
 
     # Initialize Logger
     if config['logging'] and rank == 0:
-        wandb_logger = wandb.init(project="StixelNExT Pro",
+        wandb_logger = wandb.init(project="StixelNExT-Pro",
                                   config={
                                       "learning_rate": config['learning_rate'],
                                       "loss_name": type(loss_fn).__name__,
@@ -114,8 +116,10 @@ def train(rank, world_size):
                                       "num_gpu": world_size,
                                       "blur": config['blur']
                                   },
+                                  job_type="training",
                                   tags=["training"]
                                   )
+        artifact = wandb.Artifact(f"{model_cfg['name']}_weights", type='model', description="Automatic checkpoint pick by train/ eval loss.")
         wandb_logger.watch(model)
     else:
         wandb_logger = None
@@ -127,32 +131,45 @@ def train(rank, world_size):
     # Training
     early_stopping = EarlyStopping(tolerance=config['early_stop']['tol'],
                                    min_delta=config['early_stop']['min_delta'])
+    best_loss = float('inf')
     for epoch in range(start_epoch, config['epochs']):
         print(f"\n   Epoch {epoch}\n----------------------------------------------------------------")
-        train_error = train_one_epoch(train_dataloader, model, loss_fn, optimizer,
+        train_loss = train_one_epoch(train_dataloader, model, loss_fn, optimizer,
                                       device=rank, writer=wandb_logger)
-        test_error = evaluate(val_dataloader, model, loss_fn,
+        eval_loss = evaluate(val_dataloader, model, loss_fn,
                               device=rank, writer=wandb_logger)
         # Save model
         if config['logging'] and rank == 0:
             saved_models_path = os.path.join('saved_models', wandb_logger.name)
             os.makedirs(saved_models_path, exist_ok=True)
             weights_name = f"StixelNExT-Pro_{wandb_logger.name}_{epoch}.pth"
-            save_checkpoint(model, optimizer, epoch, test_error, os.path.join(saved_models_path, weights_name))
-            print("Saved PyTorch Model State to " + os.path.join(saved_models_path, weights_name))
+            weights_path = os.path.join(saved_models_path, weights_name)
+            save_checkpoint(model, optimizer, epoch, eval_loss, weights_path)
+            print("Saved PyTorch Model State to " + weights_path)
+            if eval_loss < best_loss:
+                best_loss = eval_loss
+                best_weights_path = weights_path
+                artifact.metadata = {
+                    'epoch': epoch,
+                    'train_loss': train_loss,
+                    'eval_loss': eval_loss
+                }
         step_time = datetime.now() - overall_start_time
         print("Time elapsed: {}".format(step_time))
 
         # early stopping
-        early_stopping.check_stop(test_error)
+        early_stopping.check_stop(eval_loss)
         if early_stopping.early_stop:
             print("Early stopping at epoch:", epoch)
             break
 
     overall_time = datetime.now() - overall_start_time
     print(f"Finished training in {str(overall_time).split('.')[0]}")
-
-    wandb.finish()
+    if config['logging'] and rank == 0:
+        artifact.add_file(best_weights_path)
+        artifact.add_file(model_file.__file__)
+        wandb_logger.log_artifact(artifact)
+        wandb.finish()
     cleanup()
 
 

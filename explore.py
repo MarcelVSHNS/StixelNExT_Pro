@@ -8,7 +8,7 @@ import os
 import torch
 # import torchvision.ops
 # from torchvision.models.convnext import ConvNeXt
-from models import convnext_stixel, unet_stixel, convnext_stixel_segmentation
+from models import convnext_stixel, get_model, get_model
 from torchinfo import summary
 from losses import StixelObjectLoss, StixelVoxelLoss
 from dataloader import StixelData
