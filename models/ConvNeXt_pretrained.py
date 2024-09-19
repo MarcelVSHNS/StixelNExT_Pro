@@ -87,13 +87,14 @@ def convnext_stixel(weights: Optional[ConvNeXt_Tiny_Weights] = None, **kwargs: A
     return model, model_params
 
 
-def get_model(weights: Optional[ConvNeXt_Tiny_Weights] = None, **kwargs: Any) -> Tuple[ConvNeXt, Dict[str, Any]]:
-    with open('models/convnext-config.yaml') as file:
-        config = yaml.load(file, Loader=yaml.FullLoader)
-    c: int = config['widths_c']
-    depths_b: List[int] = config['depths_b']
-    n_bins = config['segmentation']['n_bins']
-    model_params = {'name': "ConvNeXt", 'C': c, 'B': depths_b, 'n_bins': n_bins}
+def get_model(config: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Tuple[ConvNeXt, Dict[str, Any]]:
+    if config is None:
+        with open('models/convnext-config.yaml') as file:
+            config = yaml.load(file, Loader=yaml.FullLoader)
+    c: int = config['C']
+    depths_b: List[int] = config['B']
+    n_bins = config['n_bins']
+    model_cfg = {'name': "ConvNeXt", 'C': c, 'B': depths_b, 'n_bins': n_bins}
     if c == 96 and depths_b == [3, 3, 9, 3]:
         weights = ConvNeXt_Tiny_Weights.DEFAULT
         # weights = ConvNeXt_Tiny_Weights.verify(weights)
@@ -113,4 +114,4 @@ def get_model(weights: Optional[ConvNeXt_Tiny_Weights] = None, **kwargs: Any) ->
     model.avgpool = nn.Identity()
     model.classifier = SegmentationHead(in_channels=c * 8,
                                         out_channels=n_bins)
-    return model, model_params
+    return model, model_cfg
