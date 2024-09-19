@@ -1,7 +1,7 @@
 import yaml
 import torch
 from functools import partial
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 from torch.utils.checkpoint import checkpoint
 from torch import nn, Tensor
 from torchvision.ops.misc import Conv2dNormActivation, Permute
@@ -139,13 +139,14 @@ class UnetHead(nn.Module):
         return self.activation(x)
 
 
-def get_model() -> Tuple[UNet, Dict[str, Any]]:
-    with open('models/unet-config.yaml') as file:
-        config = yaml.load(file, Loader=yaml.FullLoader)
-    c_width: int = config['widths_c']
-    level_b: int = config['level_b']
+def get_model(config: Optional[Dict[str, Any]] = None) -> Tuple[UNet, Dict[str, Any]]:
+    if config is None:
+        with open('models/unet-config.yaml') as file:
+            config = yaml.load(file, Loader=yaml.FullLoader)
+    c_width: int = config['C']
+    level_b: int = config['B']
     out_bins: int = config['out_bins']
-    block_exp = config['block_expansion']
+    block_exp = config['block_exp']
     model_cfg = {'name': "UNet", 'C': c_width, 'B': level_b, 'out_bins': out_bins, 'block_exp': block_exp}
     model = UNet(c_width=c_width,
                  b_level=level_b,

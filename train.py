@@ -166,6 +166,7 @@ def train(rank, world_size):
     overall_time = datetime.now() - overall_start_time
     print(f"Finished training in {str(overall_time).split('.')[0]}")
     if config['logging'] and rank == 0:
+        artifact.metadata.update(model_cfg)
         artifact.add_file(best_weights_path)
         artifact.add_file(model_file.__file__)
         wandb_logger.log_artifact(artifact)

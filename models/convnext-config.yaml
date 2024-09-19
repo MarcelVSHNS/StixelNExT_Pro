@@ -1,7 +1,6 @@
-widths_c: 96
-depths_b: [3, 3, 9, 3]
+C: 96
+B: [3, 3, 9, 3]
 stem_features: 64
-n_candidates: 64
+n_candidates: 64      # no pretrained
 i_attributes: 3
-segmentation:
-  n_bins: 64
+n_bins: 64            # segmentation only

@@ -32,10 +32,12 @@ def main():
     p_threshold = 0.84
     save_img: bool = False
     show_3d: bool = False
-    device = torch.device('cpu' if torch.cuda.is_available() else 'cpu')
-    testing_data = StixelData(data_dir="dataset/waymo-od_tiny_new", phase='validation', mode=config['mode'])
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    testing_data = StixelData(data_dir=config['data_path'], phase='validation', mode=config['mode'],
+                              path_extension='Stixel_bbox')
     testing_dataloader = DataLoader(testing_data, batch_size=1, pin_memory=True, drop_last=True,
                                     shuffle=True)
+    print(f"Found {len(testing_data)} records.")
     model, _ = model_fn()
     model = model.to(device)
     # summary(model, input_size=(1, 3, 1280, 1920), device=torch.device('cpu'))
@@ -56,8 +58,77 @@ def main():
     output = model(img_tensor)
     # extract Stixel
     output = output.cpu().detach()
-    test = output[0, 0:3, :, 110].numpy()
-    test_targ = target_tensor[0, 0:3, :, 110].numpy()
+
+    matrix = output.numpy()
+    # Mittelwert
+    mean = np.mean(matrix)
+    # Median
+    median = np.median(matrix)
+    # Standardabweichung
+    std_dev = np.std(matrix)
+    # Minimum und Maximum
+    min_value = np.min(matrix)
+    max_value = np.max(matrix)
+    print(f"Mittelwert: {mean}")
+    print(f"Median: {median}")
+    print(f"Standardabweichung: {std_dev}")
+    print(f"Minimum: {min_value}")
+    print(f"Maximum: {max_value}")
+
+    num_stx_dict = {}
+    for p in np.arange(0.5, 1.0, 0.02):
+        stixel_world_batch = revert_fn(prediction=output,
+                                       anchors=testing_data.depth_anchors,
+                                       stxl_wrld_paths=stxl_wrld_paths,
+                                       prob=p)
+        stixel_world: stx.StixelWorld = stixel_world_batch[0]
+        num_stx_dict[p] = len(stixel_world.stixel)
+        print(f"p: {p} = {num_stx_dict[p]}")
+
+    num_stx_dict = dict(sorted(num_stx_dict.items(), reverse=True))
+    # Extrahiere x- und y-Werte
+    x_values = list(num_stx_dict.keys())
+    y_values = list(num_stx_dict.values())
+    # Erstelle den Plot
+    plt.plot(x_values, y_values, marker='o')  # Verwende 'o' als Marker für Datenpunkte
+    plt.axvline(x=mean, color='green', linestyle='--', label=f'Mittelwert: {mean:.2f}')
+    plt.axvline(x=median, color='purple', linestyle=':', label=f'Median: {median:.2f}')
+    slopes = []
+    x_slopes = []
+    highlight_x = None
+    highlight_y = None
+    highlight2_x = None
+    highlight2_y = None
+    for i in range(1, len(x_values)):
+        x1, y1 = x_values[i - 1], y_values[i - 1]
+        x2, y2 = x_values[i], y_values[i]
+        # Steigung berechnen
+        slope = (y2 - y1) / (x2 - x1)
+        slopes.append(slope)
+        x_slopes.append(x2)
+        print(f"p: {x2} = {slope}")
+        if abs(slope) >= 1000 and highlight2_x is None:
+            highlight2_x = x2
+            highlight2_y = slope
+        if abs(slope) >= 10000 and highlight_x is None:
+            highlight_x = x2
+            highlight_y = slope
+    borders_x = [highlight2_x, highlight_x]
+    print(f"Found area: {borders_x}")
+    borders_y = [highlight2_y, highlight_y]
+    plt.plot(x_slopes, slopes, marker='x')  # Verwende 'o' als Marker für Datenpunkte
+    if highlight_x is not None and highlight_y is not None:
+        plt.scatter(borders_x, borders_y, color='red', s=100, zorder=5,
+                    label=f'area')
+    plt.title('2D-Graph aus Dictionary')
+    plt.xlabel('X-Werte')
+    plt.ylabel('Y-Werte')
+    # Zeige den Plot an
+    plt.show()
+
+
+    # test = output[0, 0:3, :, 110].numpy()
+    # test_targ = target_tensor[0, 0:3, :, 110].numpy()
     stixel_world_batch = revert_fn(prediction=output,
                                    anchors=testing_data.depth_anchors,
                                    stxl_wrld_paths=stxl_wrld_paths,
