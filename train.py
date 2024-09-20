@@ -17,7 +17,7 @@ from engine import train_one_epoch, evaluate, EarlyStopping
 from dataloader import StixelData
 
 if config['mode'] == "segmentation":
-    import models.UNet as model_file
+    import models.ConvNeXt_pretrained as model_file
     from models import get_model as model_fn
     from losses import StixelVoxelLoss as StixelLoss
 elif config['mode'] == "classification":
@@ -167,6 +167,7 @@ def train(rank, world_size):
     print(f"Finished training in {str(overall_time).split('.')[0]}")
     if config['logging'] and rank == 0:
         artifact.metadata.update(model_cfg)
+        artifact.metadata.update({"mode": config['mode']})
         artifact.add_file(best_weights_path)
         artifact.add_file(model_file.__file__)
         wandb_logger.log_artifact(artifact)
