@@ -26,14 +26,11 @@ class StixelData(Dataset):
                  path_extension: str = "",
                  transform: bool = False,
                  target_trans_blur: bool = False,
-                 depth_anchors=False):
+                 depth_anchors: Tuple[int, int, int] = (5, 50, 64)):
         self.data_dir = os.path.join(data_dir, phase)
         self.path_extension = path_extension
         self.name: str = f"{os.path.basename(data_dir)}.{phase}"
-        if depth_anchors:
-            self.depth_anchors = pd.read_csv(os.path.join(data_dir, "depth_anchors.csv"), index_col=0)
-        else:
-            self.depth_anchors = _create_depth_bins(5, 50, 64)
+        self.depth_anchors = _create_depth_bins(depth_anchors)
         self.sample_map: List[str] = os.listdir(os.path.join(self.data_dir, path_extension))
         self.mode = mode
         self.transform = transform
@@ -254,7 +251,8 @@ def _target_transform_gaussian_blur(y_target: torch.Tensor, sigma: float = 0.96,
     return torch.from_numpy(stixel_mtx).to(torch.float32)
 
 
-def _create_depth_bins(start=5, end=55, num_bins=192):
+def _create_depth_bins(cfg: Tuple[int, int, int]):
+    start, end, num_bins = cfg
     bin_vals = np.linspace(start, end, num_bins)
     bin_mtx = np.tile(bin_vals, (240, 1))
     df = pd.DataFrame(bin_mtx)
