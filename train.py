@@ -120,7 +120,7 @@ def train(rank, world_size):
                                   job_type="training",
                                   tags=["training"]
                                   )
-        artifact = wandb.Artifact(f"{model_cfg['name']}_weights", type='model', description="Automatic checkpoint pick by train/ eval loss.")
+        artifact = wandb.Artifact(f"{model_cfg['name']}_weights_art", type='model', description="Automatic checkpoint pick by train/ eval loss.")
         wandb_logger.watch(model)
     else:
         wandb_logger = None
