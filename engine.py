@@ -1,4 +1,5 @@
 import torch
+import torch.distributed as dist
 
 
 # Training Function
@@ -60,11 +61,19 @@ class EarlyStopping:
         self.counter = 0
         self.early_stop = False
 
-    def check_stop(self, validation_loss):
-        if (self.validation_loss_minus_one - validation_loss) > self.min_delta:
-            self.counter = 0
-        else:
-            self.counter += 1
-        if self.counter >= self.tolerance:
-            self.early_stop = True
-        self.validation_loss_minus_one = validation_loss
+    def check_stop(self, validation_loss, rank):
+        if rank == 0:
+            if (self.validation_loss_minus_one - validation_loss) > self.min_delta:
+                self.counter = 0
+            else:
+                self.counter += 1
+            if self.counter >= self.tolerance:
+                self.early_stop = True
+            self.validation_loss_minus_one = validation_loss
+
+        early_stop_tensor = torch.tensor(self.early_stop, device='cuda')
+        dist.broadcast(early_stop_tensor, src=0)
+
+        self.early_stop = early_stop_tensor.item()
+
+        return self.early_stop
