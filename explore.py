@@ -17,6 +17,7 @@ from PIL import Image
 import stixel as stx
 from einops import rearrange
 import time
+from datetime import datetime
 
 
 def main():
@@ -25,10 +26,11 @@ def main():
                               target_trans_blur=True)
     testing_dataloader = DataLoader(testing_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True,
                                     shuffle=True)
-
-    img_tensor, target_tensor, stxl_wrld_paths = next(iter(testing_dataloader))
-
+    start = datetime.now()
+    img_tensors, target_tensors, stxl_wrld_paths = next(iter(testing_dataloader))
+    print(f"Data loaded in {datetime.now() - start}")
     """ Data exploration """
+    """ 
     if config['mode'] == 'classification':
         stixel_world_batch = StixelData.revert_class(target_tensor,
                                                      anchors=testing_data.depth_anchors,
@@ -47,7 +49,7 @@ def main():
     stixel_img = stx.draw_stixels_on_image(stixel_world_og)
     stixel_img.show()
 
-    """ Model exploration 
+    Model exploration 
     model, _ = unet_stixel()
     # model = ConvNeXt(in_channels=3, c=60, depths_b=[3, 3, 27, 3])
     # model, _ = convnext_stixel() 

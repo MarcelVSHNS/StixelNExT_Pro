@@ -40,6 +40,7 @@ def setup(rank, world_size):
 
 
 def cleanup():
+    dist.barrier()
     dist.destroy_process_group()
 
 
@@ -158,7 +159,7 @@ def train(rank, world_size):
         print("Time elapsed: {}".format(step_time))
 
         # early stopping
-        early_stopping.check_stop(eval_loss)
+        early_stopping.check_stop(eval_loss, rank)
         if early_stopping.early_stop:
             print("Early stopping at epoch:", epoch)
             break
