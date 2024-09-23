@@ -26,7 +26,7 @@ class StixelData(Dataset):
                  path_extension: str = "",
                  transform: bool = False,
                  target_trans_blur: bool = False,
-                 depth_anchors: Tuple[int, int, int] = (5, 50, 64)):
+                 depth_anchors: Tuple[int, int, int] = (5, 69, 64)):
         self.data_dir = os.path.join(data_dir, phase)
         self.path_extension = path_extension
         self.name: str = f"{os.path.basename(data_dir)}.{phase}"
