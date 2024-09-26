@@ -29,12 +29,11 @@ else:
 
 
 def main():
-    p_threshold = 0.84
+    p_threshold = 0.56
     save_img: bool = False
     show_3d: bool = False
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    testing_data = StixelData(data_dir=config['data_path'], phase='validation', mode=config['mode'],
-                              path_extension='Stixel_bbox')
+    testing_data = StixelData(data_dir=config['data_path'], phase='validation', mode=config['mode'])
     testing_dataloader = DataLoader(testing_data, batch_size=1, pin_memory=True, drop_last=True,
                                     shuffle=True)
     print(f"Found {len(testing_data)} records.")
@@ -55,7 +54,8 @@ def main():
     img_tensor, target_tensor, stxl_wrld_paths = next(iter(testing_dataloader))
     img_tensor = img_tensor.to(device)
     # inference
-    output = model(img_tensor)
+    with torch.no_grad():
+        output = model(img_tensor)
     # extract Stixel
     output = output.cpu().detach()
 
