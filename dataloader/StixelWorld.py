@@ -23,15 +23,13 @@ class StixelData(Dataset):
                  data_dir: str,
                  phase: str,
                  mode: str,
-                 path_extension: str = "",
                  transform: bool = False,
                  target_trans_blur: bool = False,
                  depth_anchors: Tuple[int, int, int] = (5, 69, 64)):
         self.data_dir = os.path.join(data_dir, phase)
-        self.path_extension = path_extension
         self.name: str = f"{os.path.basename(data_dir)}.{phase}"
         self.depth_anchors = _create_depth_bins(depth_anchors)
-        self.sample_map: List[str] = os.listdir(os.path.join(self.data_dir, path_extension))
+        self.sample_map: List[str] = os.listdir(os.path.join(self.data_dir))
         self.mode = mode
         self.transform = transform
         self.target_trans_blur = target_trans_blur
@@ -42,7 +40,7 @@ class StixelData(Dataset):
 
     # 3. Implement __getitem()__
     def __getitem__(self, idx):
-        stxl_wrld: stx.StixelWorld = stx.read(os.path.join(self.data_dir, self.path_extension, self.sample_map[idx]))
+        stxl_wrld: stx.StixelWorld = stx.read(os.path.join(self.data_dir, self.sample_map[idx]))
         self.img_size = {'height': stxl_wrld.context.calibration.height, 'width': stxl_wrld.context.calibration.width}
         img = np.array(Image.open(io.BytesIO(stxl_wrld.image)))
         feature_image: torch.Tensor = torch.from_numpy(img).to(torch.float32)
@@ -60,7 +58,7 @@ class StixelData(Dataset):
             target_labels = _target_transform_gaussian_blur(target_labels)
         # delete ground truth Stixel from object
         # del stxl_wrld.stixel[:]
-        return feature_image, target_labels, os.path.join(self.data_dir, self.path_extension ,self.sample_map[idx])
+        return feature_image, target_labels, os.path.join(self.data_dir ,self.sample_map[idx])
 
     def _classification_target_label(self, y_target: np.array,
                                      out_bins: int = 12,

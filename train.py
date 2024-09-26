@@ -34,7 +34,7 @@ overall_start_time = datetime.now()
 def setup(rank, world_size):
     os.environ['MASTER_ADDR'] = 'localhost'
     os.environ['MASTER_PORT'] = '12355'
-    # 'gloo' for CPUs, 'nccl' für CPUs
+    # 'gloo' for CPUs, 'nccl' for GPUs
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
     torch.cuda.set_device(rank)
 
@@ -63,7 +63,7 @@ def load_checkpoint(model, optimizer, filename):
 
 
 def train(rank, world_size):
-    torch.cuda.init() 
+    # torch.cuda.init()
     setup(rank, world_size)
 
     """ 1.Load data """
@@ -74,9 +74,8 @@ def train(rank, world_size):
                                   sampler=training_sampler)
     # Validation data
     validation_data = StixelData(data_dir=config['data_path'], phase='validation', mode=config['mode'])
-    validation_sampler = DistributedSampler(validation_data, num_replicas=world_size, rank=rank)
-    val_dataloader = DataLoader(validation_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True,
-                                sampler=validation_sampler)
+    # validation_sampler = DistributedSampler(validation_data, num_replicas=world_size, rank=rank)
+    val_dataloader = DataLoader(validation_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True)
 
     """ 2.Define Model & Loss """
     model, model_cfg = model_fn()
@@ -135,6 +134,7 @@ def train(rank, world_size):
     best_loss = float('inf')
     for epoch in range(start_epoch, config['epochs']):
         print(f"\n   Epoch {epoch}\n----------------------------------------------------------------")
+        training_sampler.set_epoch(epoch)
         train_loss = train_one_epoch(train_dataloader, model, loss_fn, optimizer,
                                       device=rank, writer=wandb_logger)
         eval_loss = evaluate(val_dataloader, model, loss_fn,
