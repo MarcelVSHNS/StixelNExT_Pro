@@ -59,8 +59,8 @@ class SegmentationHead(nn.Module):
 def convnext_stixel(weights: Optional[ConvNeXt_Tiny_Weights] = None, **kwargs: Any) -> Tuple[ConvNeXt, Dict[str, Any]]:
     with open('models/convnext-config.yaml') as file:
         config = yaml.load(file, Loader=yaml.FullLoader)
-    c: int = config['widths_c']
-    depths_b: List[int] = config['depths_b']
+    c: int = config['C']
+    depths_b: List[int] = config['B']
     n_candidates: int = config['n_candidates']
     i_attr: int = config['i_attributes']
     model_params = {'name': "ConvNeXt", 'C': c, 'B': depths_b, 'n_cand': n_candidates, 'i_attr': i_attr}

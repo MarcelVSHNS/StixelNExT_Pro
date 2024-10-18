@@ -11,7 +11,7 @@ import torch
 from models import convnext_stixel, get_model, get_model
 from torchinfo import summary
 from losses import StixelObjectLoss, StixelVoxelLoss
-from dataloader import StixelData
+from dataloader import StixelData, revert_class, revert_segm
 from torch.utils.data import DataLoader
 from PIL import Image
 import stixel as stx
@@ -30,13 +30,12 @@ def main():
     img_tensors, target_tensors, stxl_wrld_paths = next(iter(testing_dataloader))
     print(f"Data loaded in {datetime.now() - start}")
     """ Data exploration """
-    """ 
     if config['mode'] == 'classification':
-        stixel_world_batch = StixelData.revert_class(target_tensor,
+        stixel_world_batch = revert_class(target_tensors,
                                                      anchors=testing_data.depth_anchors,
                                                      stxl_wrld_paths=stxl_wrld_paths)
     elif config['mode'] == 'segmentation':
-        stixel_world_batch = StixelData.revert_segm(target_tensor,
+        stixel_world_batch = revert_segm(target_tensors,
                                                     anchors=testing_data.depth_anchors,
                                                     stxl_wrld_paths=stxl_wrld_paths)
     else:
@@ -49,8 +48,8 @@ def main():
     stixel_img = stx.draw_stixels_on_image(stixel_world_og)
     stixel_img.show()
 
-    Model exploration 
-    model, _ = unet_stixel()
+    """ Model exploration """
+    model, _ = convnext_stixel()
     # model = ConvNeXt(in_channels=3, c=60, depths_b=[3, 3, 27, 3])
     # model, _ = convnext_stixel() 
 

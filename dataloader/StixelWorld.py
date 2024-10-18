@@ -81,6 +81,8 @@ class StixelData(Dataset):
         gt_stx_mtx = np.zeros((width, out_bins, i_attr))
         for index, stixel in y_target.iterrows():
             col = int(stixel['u'])
+            if col < 0:
+                continue
             anchor, anchor_idx = _find_nearest_depth(self.depth_anchors[f'{col}'], stixel['d'])
             # encoding: bottom point vB, top point vT, distance d, probability P
             if i_attr == 4:
