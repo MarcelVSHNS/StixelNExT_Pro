@@ -25,7 +25,7 @@ class StixelData(Dataset):
                  mode: str,
                  transform: bool = False,
                  target_trans_blur: bool = False,
-                 depth_anchors: Tuple[int, int, int] = (5, 69, 64)):
+                 depth_anchors: Tuple[int, int, int] = (5, 75, 64)):
         self.data_dir = os.path.join(data_dir, phase)
         self.name: str = f"{os.path.basename(data_dir)}.{phase}"
         self.depth_anchors = _create_depth_bins(depth_anchors)
@@ -253,7 +253,13 @@ def _target_transform_gaussian_blur(y_target: torch.Tensor, sigma: float = 0.96,
 
 def _create_depth_bins(cfg: Tuple[int, int, int]):
     start, end, num_bins = cfg
-    bin_vals = np.linspace(start, end, num_bins)
+    min_value = 0
+    max_value = np.pi / 3.4 # 2.4
+
+    linear_space = np.linspace(min_value, max_value, num_bins)
+    tangent_space = np.tan(linear_space)
+    bin_vals = start + (tangent_space - tangent_space.min()) / (tangent_space.max() - tangent_space.min()) * (end - start)
+
     bin_mtx = np.tile(bin_vals, (240, 1))
     df = pd.DataFrame(bin_mtx)
     df = df.T

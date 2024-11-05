@@ -1,7 +1,7 @@
 pandas
 numpy
-#torch
-#torchvision
+torch
+torchvision
 matplotlib
 wandb
 torchinfo
