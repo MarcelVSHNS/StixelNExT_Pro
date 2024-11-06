@@ -1,4 +1,5 @@
 from typing import Any, List, Optional, Tuple, Dict
+import torch
 from torch import nn, Tensor
 from torchvision.models import ConvNeXt, ConvNeXt_Tiny_Weights
 from torchvision.models.convnext import CNBlockConfig, _convnext
@@ -16,6 +17,78 @@ class LayerNorm2d(nn.LayerNorm):
         return x
 
 
+class ColumnAttention(nn.Module):
+    def __init__(self, feature_dim):
+        super(ColumnAttention, self).__init__()
+
+        self.query_layer = nn.Linear(feature_dim, feature_dim)
+        self.key_layer = nn.Linear(feature_dim, feature_dim)
+        self.value_layer = nn.Linear(feature_dim, feature_dim)
+        self.scale = torch.sqrt(torch.tensor(feature_dim, dtype=torch.float32))
+
+    def forward(self, x):
+        batch, feature_dim, height, width = x.size()
+        x = x.squeeze(2)
+        queries = self.query_layer(x.permute(0, 2, 1))
+        keys = self.key_layer(x.permute(0, 2, 1))
+        values = self.value_layer(x.permute(0, 2, 1))
+
+        attention_output = torch.zeros_like(values)
+
+        for i in range(width):
+            left_index = max(0, i - 1)
+            right_index = min(width - 1, i + 1)
+
+            neighborhood_keys = keys[:, left_index:right_index + 1, :]
+            neighborhood_values = values[:, left_index:right_index + 1, :]
+
+            query = queries[:, i, :].unsqueeze(1)
+            attention_scores = torch.bmm(query, neighborhood_keys.transpose(1, 2)) / self.scale
+
+            attention_weights = F.softmax(attention_scores, dim=-1)
+
+            weighted_sum = torch.bmm(attention_weights, neighborhood_values)
+
+            attention_output[:, i, :] = weighted_sum.squeeze(1)
+
+        attention_output = attention_output.unsqueeze(2)
+        return attention_output.permute(0, 3, 2, 1)
+
+
+def combine_attention_prediction(attention_output, prediction_output, method='concat'):
+    """
+    Kombiniert den Attention-Output und die Vorhersagen.
+
+    Args:
+        attention_output (torch.Tensor): Der Output des Attention-Layers mit Shape [1, 768, 1, 60].
+        prediction_output (torch.Tensor): Die Vorhersagen mit Shape [1, 768, 1, 60].
+        method (str): Kombinationsmethode - 'concat', 'add', 'mean', 'weighted_sum'.
+
+    Returns:
+        torch.Tensor: Der kombinierte Tensor.
+    """
+    if method == 'concat':
+        # Entlang der Feature-Dimension (768) kombinieren, neue Form [1, 1536, 1, 60]
+        combined = torch.cat((attention_output, prediction_output), dim=1)
+
+    elif method == 'add':
+        # Elementweise Addition, gleiche Form [1, 768, 1, 60]
+        combined = attention_output + prediction_output
+
+    elif method == 'mean':
+        # Elementweise Mittelwertbildung
+        combined = (attention_output + prediction_output) / 2
+
+    elif method == 'weighted_sum':
+        # Beispiel: 70% Gewicht auf Attention, 30% auf Prediction
+        combined = 0.7 * attention_output + 0.3 * prediction_output
+
+    else:
+        raise ValueError("Unbekannte Kombinationsmethode. Wähle aus 'concat', 'add', 'mean', 'weighted_sum'.")
+
+    return combined
+
+
 class ConvNeXtHead(nn.Module):
     def __init__(self, in_channels, out_channels, i_attributes):
         super(ConvNeXtHead, self).__init__()
@@ -23,12 +96,16 @@ class ConvNeXtHead(nn.Module):
         self.up = nn.Sequential(
             nn.Upsample(size=(1, 240), mode='nearest'),
             norm_layer(out_channels))
-        self.channel_reduce = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=1)
+        self.channel_reduce = nn.Conv2d(in_channels=in_channels * 2, out_channels=out_channels, kernel_size=1)
+        self.attention_layer = ColumnAttention(768)
+        self.attention_influence = partial(combine_attention_prediction, method="concat")
         self.out_channels = out_channels
         self.i_attributes = i_attributes
         self.activation = nn.Sigmoid()
 
     def forward(self, x):
+        attention_x = self.attention_layer(x)
+        x = self.attention_influence(attention_x, x)
         x = self.channel_reduce(x)
         x = self.up(x)
         assert self.out_channels % self.i_attributes == 0, "NN depth does not match, adapt n_channels."

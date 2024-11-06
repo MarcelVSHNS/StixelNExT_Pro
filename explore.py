@@ -1,4 +1,5 @@
 import yaml
+from triton.ops import attention
 
 # 0.1 Load configfile
 with open('config.yaml') as yamlfile:
@@ -10,6 +11,7 @@ import torch
 # from torchvision.models.convnext import ConvNeXt
 from models import convnext_stixel, get_model, get_model
 from torchinfo import summary
+from models.ConvNeXt_pretrained import ColumnAttention
 from losses import StixelObjectLoss, StixelVoxelLoss
 from dataloader import StixelData, revert_class, revert_segm
 from torch.utils.data import DataLoader
@@ -21,15 +23,15 @@ from datetime import datetime
 
 
 def main():
-    """ data load"""
+    """ data load
     testing_data = StixelData(data_dir=config['data_path'], phase='validation', mode=config['mode'],
                               target_trans_blur=True)
     testing_dataloader = DataLoader(testing_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True,
                                     shuffle=True)
     start = datetime.now()
     img_tensors, target_tensors, stxl_wrld_paths = next(iter(testing_dataloader))
-    print(f"Data loaded in {datetime.now() - start}")
-    """ Data exploration """
+    print(f"Data loaded in {datetime.now() - start}")"""
+    """ Data exploration 
     if config['mode'] == 'classification':
         stixel_world_batch = revert_class(target_tensors,
                                                      anchors=testing_data.depth_anchors,
@@ -46,7 +48,7 @@ def main():
     # original
     stixel_world_og: stx.StixelWorld = stx.read(stxl_wrld_paths[0])
     stixel_img = stx.draw_stixels_on_image(stixel_world_og)
-    stixel_img.show()
+    stixel_img.show()"""
 
     """ Model exploration """
     model, _ = convnext_stixel()
@@ -55,9 +57,10 @@ def main():
 
     input_shape = (1, 3, 1280, 1920)
     # x = torch.randn(input_shape)
-    # output = model(x)
-    summary(model, input_size=input_shape, device=torch.device('cpu'))
-    # print(f"Output shape: {output.shape}") """
+    #attention = ColumnAttention(768)
+    #output = attention(input_shape)
+    summary(model, input_size=input_shape)
+    #print(f"Output shape: {output.shape}")
 
     """ Loss exploration 
     inputs = torch.rand(1, 64, 160, 240)
