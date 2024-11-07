@@ -28,7 +28,7 @@ class StixelData(Dataset):
                  depth_anchors: Tuple[int, int, int] = (5, 75, 64)):
         self.data_dir = os.path.join(data_dir, phase)
         self.name: str = f"{os.path.basename(data_dir)}.{phase}"
-        self.depth_anchors = _create_depth_bins_linear(depth_anchors)
+        self.depth_anchors = _create_depth_bins(depth_anchors)
         self.sample_map: List[str] = os.listdir(os.path.join(self.data_dir))
         self.mode = mode
         self.transform = transform
