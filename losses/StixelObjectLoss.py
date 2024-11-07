@@ -24,8 +24,8 @@ class StixelObjectLoss(nn.Module):
         else:
             self.weights = weights
         # Focal Loss focus more on hard samples. BCE: universal probability loss
-        self.classify_loss = partial(focal_loss.sigmoid_focal_loss, reduction='mean')
-        # self.classify_loss: nn.BCELoss = nn.BCELoss(reduction="mean")
+        # self.classify_loss = partial(focal_loss.sigmoid_focal_loss, reduction='mean')
+        self.classify_loss: nn.BCELoss = nn.BCELoss(reduction="mean")
         # MSE: bottom point position loss + stixel/ object length loss, ...
         self.regress_loss: nn.MSELoss = nn.MSELoss(reduction="none")
         # self.regress_loss: nn.SmoothL1Loss = nn.SmoothL1Loss()
