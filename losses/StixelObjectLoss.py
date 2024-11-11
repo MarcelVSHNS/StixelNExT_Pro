@@ -57,7 +57,7 @@ class StixelObjectLoss(nn.Module):
         mask = (targets[:, p_idx, :, :] > 0).float()
 
         # currently no matching is implemented, double loss as possible strategy
-        depth_bin_loss = self.classify_loss(inputs[:, p_idx, :, :], targets[:, p_idx, :, :]) * self.weights['P']
+        depth_bin_loss = self.classify_loss(inputs[:, p_idx, :, :].contiguous(), targets[:, p_idx, :, :].contiguous()) * self.weights['P']
         bottom_loss = self.regress_loss(inputs[:, vb_idx, :, :], targets[:, vb_idx, :, :]) * self.weights['vB']
         top_loss = self.regress_loss(inputs[:, vt_idx, :, :], targets[:, vt_idx, :, :]) * self.weights['vT']
         # depth_loss = self.regress_loss(inputs[:, 2, :, :], targets[:, 2, :, :]) * self.weights['d']

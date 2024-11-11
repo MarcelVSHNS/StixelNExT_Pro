@@ -9,7 +9,7 @@ import os
 import torch
 # import torchvision.ops
 # from torchvision.models.convnext import ConvNeXt
-from models import convnext_stixel, get_model, get_model
+from models import convnext_stixel, get_model, get_model, efficientnet_stixel
 from torchinfo import summary
 from models.ConvNeXt_pretrained import ColumnAttention
 from losses import StixelObjectLoss, StixelVoxelLoss
@@ -51,7 +51,7 @@ def main():
     stixel_img.show()"""
 
     """ Model exploration """
-    model, _ = convnext_stixel()
+    model, _ = efficientnet_stixel()
     # model = ConvNeXt(in_channels=3, c=60, depths_b=[3, 3, 27, 3])
     # model, _ = convnext_stixel() 
 
@@ -64,7 +64,7 @@ def main():
 
     """ Loss exploration 
     inputs = torch.rand(1, 64, 160, 240)
-    loss_fn = StixelVoxelLoss(weights=config['loss_w_seg'])
+    loss_fn = StixelObjectLoss(weights=config['loss_w_cls'])
     l1 = loss_fn(inputs, inputs)
     print(loss_fn.params())
     print(f"Ident: {l1}")

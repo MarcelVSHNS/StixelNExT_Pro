@@ -133,9 +133,10 @@ class SegmentationHead(nn.Module):
         return self.activation(x)
 
 
-def convnext_stixel(weights: Optional[ConvNeXt_Tiny_Weights] = None, **kwargs: Any) -> Tuple[ConvNeXt, Dict[str, Any]]:
-    with open('models/convnext-config.yaml') as file:
-        config = yaml.load(file, Loader=yaml.FullLoader)
+def convnext_stixel(config: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Tuple[ConvNeXt, Dict[str, Any]]:
+    if config is None:
+        with open('models/convnext-config.yaml') as file:
+            config = yaml.load(file, Loader=yaml.FullLoader)
     c: int = config['C']
     depths_b: List[int] = config['B']
     n_candidates: int = config['n_candidates']
