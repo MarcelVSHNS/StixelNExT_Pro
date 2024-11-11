@@ -51,7 +51,7 @@ def main():
     stixel_img.show()"""
 
     """ Model exploration """
-    model, _ = efficientnet_stixel()
+    model, _ = convnext_stixel()
     # model = ConvNeXt(in_channels=3, c=60, depths_b=[3, 3, 27, 3])
     # model, _ = convnext_stixel() 
 
