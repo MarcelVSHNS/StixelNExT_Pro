@@ -124,6 +124,7 @@ def train(rank, world_size):
                                   tags=["training"]
                                   )
         artifact = wandb.Artifact(f"{model_cfg['name']}_weights_art", type='model', description="Automatic checkpoint pick by train/ eval loss.")
+        artifact.add_file(model_file.__file__)
         wandb_logger.watch(model)
     else:
         wandb_logger = None
@@ -174,7 +175,6 @@ def train(rank, world_size):
         artifact.metadata.update(model_cfg)
         artifact.metadata.update({"mode": config['mode']})
         artifact.add_file(best_weights_path)
-        artifact.add_file(model_file.__file__)
         wandb_logger.log_artifact(artifact)
         wandb.finish()
     cleanup()
