@@ -9,7 +9,7 @@ import os
 import torch
 # import torchvision.ops
 # from torchvision.models.convnext import ConvNeXt
-from models import convnext_stixel, get_model, get_model, efficientnet_stixel
+from models import convnext_stixel, get_model, get_model, efficientnet_stixel, mobilenet_stixel, swin_transformer_stixel
 from torchinfo import summary
 from models.ConvNeXt_pretrained import ColumnAttention
 from losses import StixelObjectLoss, StixelVoxelLoss
@@ -51,17 +51,23 @@ def main():
     stixel_img.show()"""
 
     """ Model exploration """
-    model, _ = convnext_stixel()
-    # model = ConvNeXt(in_channels=3, c=60, depths_b=[3, 3, 27, 3])
-    # model, _ = convnext_stixel() 
-
     input_shape = (1, 3, 1280, 1920)
-    # x = torch.randn(input_shape)
-    #attention = ColumnAttention(768)
-    #output = attention(input_shape)
+    model, _ = swin_transformer_stixel()
     summary(model, input_size=input_shape)
-    #print(f"Output shape: {output.shape}")
+    model = model.to(torch.device('cuda'))
 
+    times = []
+    for i in range(1000):
+        input_tensor = torch.randn(input_shape).to(torch.device('cuda'))
+        start = datetime.now()
+        with torch.no_grad():
+            output = model(input_tensor)
+        times.append(datetime.now() - start)
+    # output = output.cpu().detach()
+    # print(f"Output shape: {output.shape}")
+    times_in_ms = [t.total_seconds() * 1000 for t in times]
+    average_inference_time_ms = sum(times_in_ms) / len(times_in_ms)
+    print(f"Inference time: {average_inference_time_ms:.2f} ms")
     """ Loss exploration 
     inputs = torch.rand(1, 64, 160, 240)
     loss_fn = StixelObjectLoss(weights=config['loss_w_cls'])

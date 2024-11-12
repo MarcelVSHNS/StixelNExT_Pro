@@ -22,7 +22,7 @@ if config['mode'] == "segmentation":
     from losses import StixelVoxelLoss as StixelLoss
 elif config['mode'] == "classification":
     import models.ConvNeXt_pretrained as model_file
-    from models import convnext_stixel as model_fn
+    from models import swin_transformer_stixel as model_fn
     from losses import StixelObjectLoss as StixelLoss
 else:
     raise ValueError("Invalid mode specified in config file!")
@@ -82,7 +82,7 @@ def train(rank, world_size):
     val_dataloader = DataLoader(validation_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True)
 
     """ 2.Define Model & Loss """
-    model, model_cfg = model_fn()
+    model, model_cfg = model_fn(n_candidates=config['n_candidates'])
     model = model.to(rank)
     model = DDP(model, device_ids=[rank], find_unused_parameters=True)
     # Optimizer definition
