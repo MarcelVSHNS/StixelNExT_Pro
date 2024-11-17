@@ -116,7 +116,7 @@ def convnext_stixel(n_candidates: int = 64, config: Optional[Dict[str, Any]] = N
             config = yaml.load(file, Loader=yaml.FullLoader)
     c: int = config['C']
     depths_b: List[int] = config['B']
-    i_attr: int = config['i_attributes']
+    i_attr: int = config['i_attr']
     model_params = {'name': "ConvNeXt", 'C': c, 'B': depths_b, 'n_cand': n_candidates, 'i_attr': i_attr}
     if c == 96 and depths_b == [3, 3, 9, 3]:
         weights = ConvNeXt_Tiny_Weights.DEFAULT
@@ -242,7 +242,7 @@ def swin_transformer_stixel(n_candidates: int = 64, **kwargs: Any) -> Tuple[Swin
 
     model.avgpool = nn.AvgPool2d(kernel_size=(40, 1), stride=(40, 1))
     model.head = StixelHead(in_channels=768,
-                                  out_channels=3 * 64,
+                                  out_channels=3 * n_candidates,
                                   i_attributes=3)
     return model, model_params
 
