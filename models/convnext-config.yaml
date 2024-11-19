@@ -1,5 +1,5 @@
 C: 96
-B: [3, 3, 9, 3]
+B: [ 3, 3, 9, 3 ]
 stem_features: 64
-i_attributes: 3
+i_attr: 3
 n_bins: 64            # segmentation only

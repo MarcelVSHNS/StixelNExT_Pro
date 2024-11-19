@@ -1,4 +1,5 @@
 import yaml
+
 # 0.1 Load configfile
 with open('config.yaml') as yamlfile:
     config = yaml.load(yamlfile, Loader=yaml.FullLoader)
@@ -22,7 +23,7 @@ if config['mode'] == "segmentation":
     from losses import StixelVoxelLoss as StixelLoss
 elif config['mode'] == "classification":
     import models.ConvNeXt_pretrained as model_file
-    from models import swin_transformer_stixel as model_fn
+    from models import convnext_stixel as model_fn
     from losses import StixelObjectLoss as StixelLoss
 else:
     raise ValueError("Invalid mode specified in config file!")
@@ -100,7 +101,8 @@ def train(rank, world_size):
     if config['load_checkpoint'] is not None:
         if rank == 0 and os.path.isfile(config['load_checkpoint']):
             start_epoch, loss = load_checkpoint(model, optimizer, config['load_checkpoint'])
-            print(f"Checkpoint {os.path.basename(config['load_checkpoint'])} loaded. Training stopped on epoch {start_epoch - 1} with loss {loss}. Training will be continued ...")
+            print(
+                f"Checkpoint {os.path.basename(config['load_checkpoint'])} loaded. Training stopped on epoch {start_epoch - 1} with loss {loss}. Training will be continued ...")
 
     # Initialize Logger
     if config['logging'] and rank == 0:
@@ -123,7 +125,8 @@ def train(rank, world_size):
                                   job_type="training",
                                   tags=["training"]
                                   )
-        artifact = wandb.Artifact(f"{model_cfg['name']}_weights_art", type='model', description="Automatic checkpoint pick by train/ eval loss.")
+        artifact = wandb.Artifact(f"{model_cfg['name']}_weights_art", type='model',
+                                  description="Automatic checkpoint pick by train/ eval loss.")
         artifact.add_file(model_file.__file__)
         wandb_logger.watch(model)
     else:
@@ -141,9 +144,9 @@ def train(rank, world_size):
         print(f"\n   Epoch {epoch}\n----------------------------------------------------------------")
         training_sampler.set_epoch(epoch)
         train_loss = train_one_epoch(train_dataloader, model, loss_fn, optimizer,
-                                      device=rank, writer=wandb_logger)
+                                     device=rank, writer=wandb_logger)
         eval_loss = evaluate(val_dataloader, model, loss_fn,
-                              device=rank, writer=wandb_logger)
+                             device=rank, writer=wandb_logger)
         # Save model
         if config['logging'] and rank == 0:
             saved_models_path = os.path.join('saved_models', wandb_logger.name)

@@ -1,7 +1,8 @@
 from typing import Any, List, Optional, Tuple, Dict
 import torch
 from torch import nn, Tensor
-from torchvision.models import ConvNeXt, ConvNeXt_Tiny_Weights, EfficientNet, EfficientNet_V2_S_Weights, MobileNetV3, MobileNet_V3_Small_Weights, SwinTransformer, Swin_V2_T_Weights
+from torchvision.models import ConvNeXt, ConvNeXt_Tiny_Weights, EfficientNet, EfficientNet_V2_S_Weights, MobileNetV3, \
+    MobileNet_V3_Small_Weights, SwinTransformer, Swin_V2_T_Weights
 from torchvision.models.convnext import CNBlockConfig, _convnext
 from torchvision.models.efficientnet import _efficientnet_conf
 from torchvision.models.mobilenetv3 import _mobilenet_v3_conf
@@ -73,16 +74,16 @@ class StixelHead(nn.Module):
         self.up = nn.Sequential(
             nn.Upsample(size=(1, 240), mode='nearest'),
             norm_layer(out_channels))
-        self.channel_reduce = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=1)
-        #self.attention_layer = ColumnAttention(768)
-        #self.attention_influence = partial(combine_attention_prediction, method="concat")
+        self.channel_reduce = nn.Conv2d(in_channels=in_channels * 2, out_channels=out_channels, kernel_size=1)
+        self.attention_layer = ColumnAttention(768)
+        self.attention_influence = partial(combine_attention_prediction, method="concat")
         self.out_channels = out_channels
         self.i_attributes = i_attributes
         self.activation = nn.Sigmoid()
 
     def forward(self, x):
-        #attention_x = self.attention_layer(x)
-        #x = self.attention_influence(attention_x, x)
+        attention_x = self.attention_layer(x)
+        x = self.attention_influence(attention_x, x)
         x = self.channel_reduce(x)
         x = self.up(x)
         assert self.out_channels % self.i_attributes == 0, "NN depth does not match, adapt n_channels."
@@ -95,7 +96,7 @@ class StixelHead(nn.Module):
 class SegmentationHead(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(SegmentationHead, self).__init__()
-        self.channel_reduce = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=1)
+        self.channel_reduce = nn.Conv2d(in_channels=in_channels * 2, out_channels=out_channels, kernel_size=1)
         self.out_channels = out_channels
         norm_layer = partial(LayerNorm2d, eps=1e-6)
         self.up = nn.Upsample(size=(160, 240), mode='nearest')
@@ -110,7 +111,8 @@ class SegmentationHead(nn.Module):
         return self.activation(x)
 
 
-def convnext_stixel(n_candidates: int = 64, config: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Tuple[ConvNeXt, Dict[str, Any]]:
+def convnext_stixel(n_candidates: int = 64, config: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Tuple[
+    ConvNeXt, Dict[str, Any]]:
     if config is None:
         with open('models/convnext-config.yaml') as file:
             config = yaml.load(file, Loader=yaml.FullLoader)
@@ -178,7 +180,7 @@ class StixelMobileNetV3(MobileNetV3):
     def forward(self, x):
         x = self.features(x)
         x = self.avgpool(x)
-        #x = torch.flatten(x, 1)
+        # x = torch.flatten(x, 1)
         x = self.classifier(x)
         return x
 
@@ -212,7 +214,7 @@ class StixelSwinTransformer(SwinTransformer):
         x = self.norm(x)
         x = self.permute(x)
         x = self.avgpool(x)
-        #x = torch.flatten(x, 1)
+        # x = torch.flatten(x, 1)
         x = self.head(x)
         return x
 
@@ -226,7 +228,7 @@ def swin_transformer_stixel(n_candidates: int = 64, **kwargs: Any) -> Tuple[Swin
 
     if weights is not None:
         _ovewrite_named_param(kwargs, "num_classes", len(weights.meta["categories"]))
-    model =StixelSwinTransformer(
+    model = StixelSwinTransformer(
         patch_size=[4, 4],
         embed_dim=96,
         depths=[2, 2, 6, 2],
@@ -242,12 +244,13 @@ def swin_transformer_stixel(n_candidates: int = 64, **kwargs: Any) -> Tuple[Swin
 
     model.avgpool = nn.AvgPool2d(kernel_size=(40, 1), stride=(40, 1))
     model.head = StixelHead(in_channels=768,
-                                  out_channels=3 * n_candidates,
-                                  i_attributes=3)
+                            out_channels=3 * n_candidates,
+                            i_attributes=3)
     return model, model_params
 
 
-def convnext_stixel_segmentation(config: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Tuple[ConvNeXt, Dict[str, Any]]:
+def convnext_stixel_segmentation(config: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Tuple[
+    ConvNeXt, Dict[str, Any]]:
     if config is None:
         with open('models/convnext-config.yaml') as file:
             config = yaml.load(file, Loader=yaml.FullLoader)

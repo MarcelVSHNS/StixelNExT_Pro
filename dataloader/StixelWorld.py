@@ -29,7 +29,7 @@ class StixelData(Dataset):
         self.data_dir = os.path.join(data_dir, phase)
         self.name: str = f"{os.path.basename(data_dir)}.{phase}"
         # self.depth_anchors = _create_depth_bins(depth_anchors)
-        self.depth_anchors = _create_depth_bins_linear(depth_anchors)
+        self.depth_anchors = _create_depth_bins(depth_anchors)
         self.sample_map: List[str] = os.listdir(os.path.join(self.data_dir))
         self.mode = mode
         self.transform = transform
@@ -59,7 +59,7 @@ class StixelData(Dataset):
             target_labels = _target_transform_gaussian_blur(target_labels)
         # delete ground truth Stixel from object
         # del stxl_wrld.stixel[:]
-        return feature_image, target_labels, os.path.join(self.data_dir ,self.sample_map[idx])
+        return feature_image, target_labels, os.path.join(self.data_dir, self.sample_map[idx])
 
     def _classification_target_label(self, y_target: np.array,
                                      out_bins: int = 12,
@@ -167,8 +167,8 @@ def revert_class(prediction: torch.Tensor,
                     if columns[u][n][2] >= prob:
                         stxl = Stixel()
                         stxl.u = int(u * u_scale)
-                        stxl.vT = int(columns[u][n][1] * img_height +1)
-                        stxl.vB = int(columns[u][n][0] * img_height +1)
+                        stxl.vT = int(columns[u][n][1] * img_height + 1)
+                        stxl.vB = int(columns[u][n][0] * img_height + 1)
                         stxl.d = anchors[f'{u}'][n]
                         stxl.confidence = columns[u][n][2]
                         stxl.width = u_scale
@@ -242,7 +242,8 @@ def _feature_transform_resize(x_features: torch.Tensor, target_size: Dict[str, i
     return x_features_resized.squeeze(0)
 
 
-def _target_transform_gaussian_blur(y_target: torch.Tensor, sigma: float = 0.96, normalize: bool = False) -> torch.Tensor:
+def _target_transform_gaussian_blur(y_target: torch.Tensor, sigma: float = 0.96,
+                                    normalize: bool = False) -> torch.Tensor:
     stixel_mtx = y_target.numpy()
     blurred_matrix = gaussian_filter(stixel_mtx, sigma=sigma)
     if normalize:
@@ -255,17 +256,19 @@ def _target_transform_gaussian_blur(y_target: torch.Tensor, sigma: float = 0.96,
 def _create_depth_bins(cfg: Tuple[int, int, int]):
     start, end, num_bins = cfg
     min_value = 0
-    max_value = np.pi / 3.4 # 2.4
+    max_value = np.pi / 3.4  # 2.4
 
     linear_space = np.linspace(min_value, max_value, num_bins)
     tangent_space = np.tan(linear_space)
-    bin_vals = start + (tangent_space - tangent_space.min()) / (tangent_space.max() - tangent_space.min()) * (end - start)
+    bin_vals = start + (tangent_space - tangent_space.min()) / (tangent_space.max() - tangent_space.min()) * (
+                end - start)
 
     bin_mtx = np.tile(bin_vals, (240, 1))
     df = pd.DataFrame(bin_mtx)
     df = df.T
     df.columns = [str(i) for i in range(240)]
     return df
+
 
 def _create_depth_bins_linear(cfg: Tuple[int, int, int]):
     start, end, num_bins = cfg
