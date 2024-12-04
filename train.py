@@ -72,13 +72,13 @@ def train(rank, world_size):
     tmpdir = os.getenv("TMPDIR", "")
     data_dir = os.path.join(tmpdir, config['data_path'])
     training_data = StixelData(data_dir=data_dir, phase='training', mode=config['mode'],
-                               target_trans_blur=config['blur'], depth_anchors=(5, 63, config['n_candidates']))
+                               target_trans_blur=config['blur'], depth_anchors=(4, 66, config['n_candidates']))
     training_sampler = DistributedSampler(training_data, num_replicas=world_size, rank=rank)
     train_dataloader = DataLoader(training_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True,
                                   sampler=training_sampler)
     # Validation data
     validation_data = StixelData(data_dir=data_dir, phase='validation', mode=config['mode'],
-                                 depth_anchors=(5, 63, config['n_candidates']))
+                                 depth_anchors=(4, 66, config['n_candidates']))
     # validation_sampler = DistributedSampler(validation_data, num_replicas=world_size, rank=rank)
     val_dataloader = DataLoader(validation_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True)
 

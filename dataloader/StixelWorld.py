@@ -23,9 +23,9 @@ class StixelData(Dataset):
                  data_dir: str,
                  phase: str,
                  mode: str,
+                 depth_anchors: Tuple[int, int, int],
                  transform: bool = False,
-                 target_trans_blur: bool = False,
-                 depth_anchors: Tuple[int, int, int] = (5, 75, 64)):
+                 target_trans_blur: bool = False):
         self.data_dir = os.path.join(data_dir, phase)
         self.name: str = f"{os.path.basename(data_dir)}.{phase}"
         # self.depth_anchors = _create_depth_bins(depth_anchors)
@@ -62,7 +62,7 @@ class StixelData(Dataset):
         return feature_image, target_labels, os.path.join(self.data_dir, self.sample_map[idx])
 
     def _classification_target_label(self, y_target: np.array,
-                                     out_bins: int = 12,
+                                     out_bins: int = 64,
                                      i_attr: int = 3,
                                      u_scale: int = 8,
                                      d_scale: float = 50.0,
