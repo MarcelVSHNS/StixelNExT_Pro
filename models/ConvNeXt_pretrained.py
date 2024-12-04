@@ -74,7 +74,7 @@ class StixelHead(nn.Module):
         self.up = nn.Sequential(
             nn.Upsample(size=(1, 240), mode='nearest'),
             norm_layer(out_channels))
-        self.channel_reduce = nn.Conv2d(in_channels=in_channels * 2, out_channels=out_channels, kernel_size=1)
+        self.channel_reduce = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=1)
         self.attention_layer = ColumnAttention(768)
         self.attention_influence = partial(combine_attention_prediction, method="concat")
         self.out_channels = out_channels
@@ -82,8 +82,8 @@ class StixelHead(nn.Module):
         self.activation = nn.Sigmoid()
 
     def forward(self, x):
-        attention_x = self.attention_layer(x)
-        x = self.attention_influence(attention_x, x)
+        # attention_x = self.attention_layer(x)
+        # x = self.attention_influence(attention_x, x)
         x = self.channel_reduce(x)
         x = self.up(x)
         assert self.out_channels % self.i_attributes == 0, "NN depth does not match, adapt n_channels."

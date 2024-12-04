@@ -29,7 +29,7 @@ class StixelData(Dataset):
         self.data_dir = os.path.join(data_dir, phase)
         self.name: str = f"{os.path.basename(data_dir)}.{phase}"
         # self.depth_anchors = _create_depth_bins(depth_anchors)
-        self.depth_anchors = _create_depth_bins(depth_anchors)
+        self.depth_anchors = _create_depth_bins_linear(depth_anchors)
         self.sample_map: List[str] = os.listdir(os.path.join(self.data_dir))
         self.mode = mode
         self.transform = transform
@@ -261,7 +261,7 @@ def _create_depth_bins(cfg: Tuple[int, int, int]):
     linear_space = np.linspace(min_value, max_value, num_bins)
     tangent_space = np.tan(linear_space)
     bin_vals = start + (tangent_space - tangent_space.min()) / (tangent_space.max() - tangent_space.min()) * (
-                end - start)
+            end - start)
 
     bin_mtx = np.tile(bin_vals, (240, 1))
     df = pd.DataFrame(bin_mtx)
