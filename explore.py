@@ -9,7 +9,8 @@ import os
 import torch
 # import torchvision.ops
 # from torchvision.models.convnext import ConvNeXt
-from models import convnext_stixel, get_model, get_model, efficientnet_stixel, mobilenet_stixel, swin_transformer_stixel
+from models import convnext_stixel, get_model, get_model, efficientnet_stixel, mobilenet_stixel, \
+    swin_transformer_stixel, shufflenet_stixel
 from torchinfo import summary
 from models.ConvNeXt_pretrained import ColumnAttention
 from losses import StixelObjectLoss, StixelVoxelLoss
@@ -51,14 +52,15 @@ def main():
     stixel_img.show()"""
 
     """ Model exploration """
+    device = torch.device('cpu')
     input_shape = (1, 3, 1280, 1920)
-    model, _ = swin_transformer_stixel()
+    model, _ = convnext_stixel()
     summary(model, input_size=input_shape)
-    model = model.to(torch.device('cuda'))
+    model = model.to(device)
 
     times = []
-    for i in range(1000):
-        input_tensor = torch.randn(input_shape).to(torch.device('cuda'))
+    for i in range(100):
+        input_tensor = torch.randn(input_shape).to(device)
         start = datetime.now()
         with torch.no_grad():
             output = model(input_tensor)

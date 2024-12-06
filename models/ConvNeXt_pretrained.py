@@ -2,7 +2,7 @@ from typing import Any, List, Optional, Tuple, Dict
 import torch
 from torch import nn, Tensor
 from torchvision.models import ConvNeXt, ConvNeXt_Tiny_Weights, EfficientNet, EfficientNet_V2_S_Weights, MobileNetV3, \
-    MobileNet_V3_Small_Weights, SwinTransformer, Swin_V2_T_Weights
+    MobileNet_V3_Large_Weights, SwinTransformer, Swin_V2_T_Weights, ShuffleNetV2, ShuffleNet_V2_X2_0_Weights
 from torchvision.models.convnext import CNBlockConfig, _convnext
 from torchvision.models.efficientnet import _efficientnet_conf
 from torchvision.models.mobilenetv3 import _mobilenet_v3_conf
@@ -171,7 +171,7 @@ def efficientnet_stixel(n_candidates: int = 64, **kwargs: Any) -> Tuple[Efficien
 
     model.avgpool = nn.AvgPool2d(kernel_size=(40, 1), stride=(40, 1))
     model.classifier = StixelHead(in_channels=1280,
-                                  out_channels=3 * 64,
+                                  out_channels=3 * n_candidates,
                                   i_attributes=3)
     return model, model_params
 
@@ -188,10 +188,10 @@ class StixelMobileNetV3(MobileNetV3):
 def mobilenet_stixel(n_candidates: int = 64, **kwargs: Any) -> Tuple[MobileNetV3, Dict[str, Any]]:
     model_params = {'name': "ConvNeXt", 'n_cand': n_candidates, 'i_attr': 3}
 
-    weights = MobileNet_V3_Small_Weights.DEFAULT
-    weights = MobileNet_V3_Small_Weights.verify(weights)
+    weights = MobileNet_V3_Large_Weights.DEFAULT
+    weights = MobileNet_V3_Large_Weights.verify(weights)
     print(f"Pretrained weights loaded for {weights}.")
-    inverted_residual_setting, last_channel = _mobilenet_v3_conf("mobilenet_v3_small", **kwargs)
+    inverted_residual_setting, last_channel = _mobilenet_v3_conf("mobilenet_v3_large", **kwargs)
 
     if weights is not None:
         _ovewrite_named_param(kwargs, "num_classes", len(weights.meta["categories"]))
@@ -202,9 +202,49 @@ def mobilenet_stixel(n_candidates: int = 64, **kwargs: Any) -> Tuple[MobileNetV3
         model.load_state_dict(weights.get_state_dict(progress=True, check_hash=True))
 
     model.avgpool = nn.AvgPool2d(kernel_size=(40, 1), stride=(40, 1))
-    model.classifier = StixelHead(in_channels=576,
-                                  out_channels=3 * 64,
+    model.classifier = StixelHead(in_channels=960,
+                                  out_channels=3 * n_candidates,
                                   i_attributes=3)
+    return model, model_params
+
+
+class StixelShuffleNetV2(ShuffleNetV2):
+    def __init__(self, stages_repeats: List[int], stages_out_channels: List[int]):
+        super(StixelShuffleNetV2, self).__init__(stages_repeats=stages_repeats, stages_out_channels=stages_out_channels)
+        self.avgpool = nn.AvgPool2d(kernel_size=(40, 1), stride=(40, 1))
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.maxpool(x)
+        x = self.stage2(x)
+        x = self.stage3(x)
+        x = self.stage4(x)
+        x = self.conv5(x)
+        # x = x.mean([2, 3])  # globalpool
+        x = self.avgpool(x)
+        x = self.fc(x)
+        return x
+
+
+def shufflenet_stixel(n_candidates: int = 64, **kwargs: Any) -> Tuple[MobileNetV3, Dict[str, Any]]:
+    model_params = {'name': "ConvNeXt", 'n_cand': n_candidates, 'i_attr': 3}
+
+    weights = ShuffleNet_V2_X2_0_Weights.DEFAULT
+    weights = ShuffleNet_V2_X2_0_Weights.verify(weights)
+    print(f"Pretrained weights loaded for {weights}.")
+
+    if weights is not None:
+        _ovewrite_named_param(kwargs, "num_classes", len(weights.meta["categories"]))
+
+    model = StixelShuffleNetV2(stages_repeats=[4, 8, 4],
+                               stages_out_channels=[24, 244, 488, 976, 2048])
+
+    if weights is not None:
+        model.load_state_dict(weights.get_state_dict(progress=True, check_hash=True))
+
+    model.fc = StixelHead(in_channels=2048,
+                          out_channels=3 * n_candidates,
+                          i_attributes=3)
     return model, model_params
 
 
