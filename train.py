@@ -23,7 +23,7 @@ if config['mode'] == "segmentation":
     from losses import StixelVoxelLoss as StixelLoss
 elif config['mode'] == "classification":
     import models.ConvNeXt_pretrained as model_file
-    from models import shufflenet_stixel as model_fn
+    from models import convnext_stixel as model_fn
     from losses import StixelObjectLoss as StixelLoss
 else:
     raise ValueError("Invalid mode specified in config file!")

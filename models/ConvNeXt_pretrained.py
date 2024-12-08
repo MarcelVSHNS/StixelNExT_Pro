@@ -227,7 +227,7 @@ class StixelShuffleNetV2(ShuffleNetV2):
 
 
 def shufflenet_stixel(n_candidates: int = 64, **kwargs: Any) -> Tuple[MobileNetV3, Dict[str, Any]]:
-    model_params = {'name': "ConvNeXt", 'n_cand': n_candidates, 'i_attr': 3}
+    model_params = {'name': "ShuffleNet", 'n_cand': n_candidates, 'i_attr': 3}
 
     weights = ShuffleNet_V2_X2_0_Weights.DEFAULT
     weights = ShuffleNet_V2_X2_0_Weights.verify(weights)
