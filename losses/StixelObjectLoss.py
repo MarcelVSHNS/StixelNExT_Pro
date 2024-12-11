@@ -1,8 +1,29 @@
+from sympy.abc import alpha
 from torch import nn
 from torchvision.ops import focal_loss
 from functools import partial
 from typing import List, Tuple, Dict, Any, Optional
 import torch
+
+
+class DepthWeightedBCELoss(nn.Module):
+    def __init__(self, min_alpha=0.25, max_alpha=1.0, n_cand=64):
+        super(DepthWeightedBCELoss, self).__init__()
+        self.min_alpha = min_alpha
+        self.max_alpha = max_alpha
+        self.max_depth = n_cand
+
+    def forward(self, inputs, targets):
+        depth_indices = torch.arange(self.max_depth, device=inputs.device).unsqueeze(0).unsqueeze(-1)
+
+        alpha = self.min_alpha + (depth_indices / self.max_depth) * (
+                self.max_alpha - self.min_alpha)
+        alpha = alpha.expand(inputs.size(0), self.max_depth, inputs.size(2))  #
+
+        bce_loss = - (targets * torch.log(inputs) + (1 - targets) * torch.log(1 - inputs))
+        weighted_bce_loss = alpha * bce_loss
+
+        return weighted_bce_loss.mean()
 
 
 class StixelObjectLoss(nn.Module):
@@ -11,6 +32,7 @@ class StixelObjectLoss(nn.Module):
     e.g. [2, 4, 12, 240]. The inner dimension of the attributes are [vB, vT, d, P] with v = row Bottom and Top, depth d
     and Probability P.
     """
+
     def __init__(self, weights: Optional[Dict[str, float]] = None):
         super(StixelObjectLoss, self).__init__()
         if weights is None:
@@ -25,7 +47,8 @@ class StixelObjectLoss(nn.Module):
             self.weights = weights
         # Focal Loss focus more on hard samples. BCE: universal probability loss
         # self.classify_loss = partial(focal_loss.sigmoid_focal_loss, reduction='mean')
-        self.classify_loss: nn.BCELoss = nn.BCELoss(reduction="mean")
+        self.classify_loss: DepthWeightedBCELoss = DepthWeightedBCELoss(min_alpha=1, max_alpha=2, n_cand=64)
+        # self.classify_loss: nn.BCELoss = nn.BCELoss(reduction="mean")
         # MSE: bottom point position loss + stixel/ object length loss, ...
         self.regress_loss: nn.MSELoss = nn.MSELoss(reduction="none")
         # self.regress_loss: nn.SmoothL1Loss = nn.SmoothL1Loss()
@@ -66,4 +89,4 @@ class StixelObjectLoss(nn.Module):
         # summarize all partial losses and apply mask
         masked_seg_loss = (top_loss + bottom_loss) * mask
         seg_loss = masked_seg_loss.sum() / mask.sum()
-        return depth_bin_loss + seg_loss   # + depth_loss  + depth_length_ratio_loss
+        return depth_bin_loss + seg_loss  # + depth_loss  + depth_length_ratio_loss
