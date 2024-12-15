@@ -256,7 +256,7 @@ def _target_transform_gaussian_blur(y_target: torch.Tensor, sigma: float = 0.96,
 def _create_depth_bins(cfg: Tuple[int, int, int]):
     start, end, num_bins = cfg
     min_value = 0
-    max_value = np.pi / 3.4  # 2.4
+    max_value = np.pi / 2.72  # 2.4
 
     linear_space = np.linspace(min_value, max_value, num_bins)
     tangent_space = np.tan(linear_space)

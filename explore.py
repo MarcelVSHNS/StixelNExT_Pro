@@ -24,14 +24,13 @@ from datetime import datetime
 
 
 def main():
-    """ data load
+    """ data load """
     testing_data = StixelData(data_dir=config['data_path'], phase='validation', mode=config['mode'],
-                              target_trans_blur=True)
+                              depth_anchors=(4, 66, config['n_candidates']), target_trans_blur=False)
     testing_dataloader = DataLoader(testing_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True,
                                     shuffle=True)
-    start = datetime.now()
-    img_tensors, target_tensors, stxl_wrld_paths = next(iter(testing_dataloader))
-    print(f"Data loaded in {datetime.now() - start}")"""
+    print(testing_data.depth_anchors)
+    # img_tensors, target_tensors, stxl_wrld_paths = next(iter(testing_dataloader))
     """ Data exploration 
     if config['mode'] == 'classification':
         stixel_world_batch = revert_class(target_tensors,
@@ -51,13 +50,12 @@ def main():
     stixel_img = stx.draw_stixels_on_image(stixel_world_og)
     stixel_img.show()"""
 
-    """ Model exploration """
+    """ Model exploration 
     device = torch.device('cuda')
     input_shape = (1, 3, 384, 1280)
     model, _ = convnext_stixel()
     summary(model, input_size=input_shape)
     model = model.to(device)
-    """
     times = []
     for i in range(1):
         input_tensor = torch.randn(input_shape).to(device)
