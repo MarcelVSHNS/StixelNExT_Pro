@@ -75,8 +75,8 @@ class StixelHead(nn.Module):
             nn.Upsample(size=(1, 240), mode='nearest'),
             norm_layer(out_channels))
         self.channel_reduce = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=1)
-        self.attention_layer = ColumnAttention(768)
-        self.attention_influence = partial(combine_attention_prediction, method="concat")
+        # self.attention_layer = ColumnAttention(768)
+        # self.attention_influence = partial(combine_attention_prediction, method="concat")
         self.out_channels = out_channels
         self.i_attributes = i_attributes
         self.activation = nn.Sigmoid()
