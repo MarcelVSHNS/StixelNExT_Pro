@@ -42,7 +42,7 @@ class StixelData(Dataset):
     # 3. Implement __getitem()__
     def __getitem__(self, idx):
         stxl_wrld: stx.StixelWorld = stx.read(os.path.join(self.data_dir, self.sample_map[idx]))
-        self.img_size = {'height': stxl_wrld.context.calibration.height, 'width': stxl_wrld.context.calibration.width}
+        self.img_size = {'height': 384, 'width': 1280}
         img = np.array(Image.open(io.BytesIO(stxl_wrld.image)))
         feature_image: torch.Tensor = torch.from_numpy(img).to(torch.float32)
         feature_image = rearrange(feature_image, "h w c -> c h w")

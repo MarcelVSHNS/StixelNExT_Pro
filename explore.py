@@ -51,13 +51,13 @@ def main():
     stixel_img = stx.draw_stixels_on_image(stixel_world_og)
     stixel_img.show()"""
 
-    """ Model exploration 
+    """ Model exploration """
     device = torch.device('cuda')
-    input_shape = (1, 3, 1280, 1920)
+    input_shape = (1, 3, 384, 1280)
     model, _ = convnext_stixel()
     summary(model, input_size=input_shape)
     model = model.to(device)
-
+    """
     times = []
     for i in range(1):
         input_tensor = torch.randn(input_shape).to(device)
@@ -71,7 +71,7 @@ def main():
     average_inference_time_ms = sum(times_in_ms) / len(times_in_ms)
     print(f"Inference time: {average_inference_time_ms:.2f} ms") """
 
-    """ Loss exploration """
+    """ Loss exploration 
     inputs = torch.rand(1, 3, 64, 240)
     loss_fn = StixelObjectLoss(weights=config['loss_w_cls'])
     l1 = loss_fn(inputs, inputs)
@@ -79,7 +79,7 @@ def main():
     print(f"Ident: {l1}")
     target = torch.rand(1, 3, 64, 240)
     l2 = loss_fn(inputs, target)
-    print(f"Diff: {l2}")
+    print(f"Diff: {l2}") """
 
 
 if __name__ == '__main__':

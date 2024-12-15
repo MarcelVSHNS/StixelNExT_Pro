@@ -72,7 +72,7 @@ class StixelHead(nn.Module):
         super(StixelHead, self).__init__()
         norm_layer = partial(LayerNorm2d, eps=1e-6)
         self.up = nn.Sequential(
-            nn.Upsample(size=(1, 240), mode='nearest'),
+            nn.Upsample(size=(1, 160), mode='nearest'),
             norm_layer(out_channels))
         self.channel_reduce = nn.Conv2d(in_channels=in_channels * 2, out_channels=out_channels, kernel_size=1)
         self.attention_layer = ColumnAttention(768)
@@ -136,7 +136,7 @@ def convnext_stixel(n_candidates: int = 64, config: Optional[Dict[str, Any]] = N
     ]
     stochastic_depth_prob = kwargs.pop("stochastic_depth_prob", 0.1)
     model = _convnext(block_setting, stochastic_depth_prob, weights, True, **kwargs)
-    model.avgpool = nn.AvgPool2d(kernel_size=(40, 1), stride=(40, 1))
+    model.avgpool = nn.AvgPool2d(kernel_size=(12, 1), stride=(12, 1))
     model.classifier = StixelHead(in_channels=c * 8,
                                   out_channels=i_attr * n_candidates,
                                   i_attributes=i_attr)
