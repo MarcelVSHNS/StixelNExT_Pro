@@ -24,12 +24,12 @@ from datetime import datetime
 
 
 def main():
-    """ data load """
+    """ data load
     testing_data = StixelData(data_dir=config['data_path'], phase='validation', mode=config['mode'],
-                              depth_anchors=(4, 66, config['n_candidates']), target_trans_blur=False)
+                              depth_anchors=(4, 66, config['n_cand']), target_trans_blur=False)
     testing_dataloader = DataLoader(testing_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True,
                                     shuffle=True)
-    print(testing_data.depth_anchors)
+    print(testing_data.depth_anchors)"""
     # img_tensors, target_tensors, stxl_wrld_paths = next(iter(testing_dataloader))
     """ Data exploration 
     if config['mode'] == 'classification':
@@ -50,11 +50,12 @@ def main():
     stixel_img = stx.draw_stixels_on_image(stixel_world_og)
     stixel_img.show()"""
 
-    """ Model exploration 
+    """ Model exploration """
     device = torch.device('cuda')
     input_shape = (1, 3, 384, 1280)
     model, _ = convnext_stixel()
     summary(model, input_size=input_shape)
+    """
     model = model.to(device)
     times = []
     for i in range(1):
@@ -67,9 +68,9 @@ def main():
     # print(f"Output shape: {output.shape}")
     times_in_ms = [t.total_seconds() * 1000 for t in times]
     average_inference_time_ms = sum(times_in_ms) / len(times_in_ms)
-    print(f"Inference time: {average_inference_time_ms:.2f} ms") """
+    print(f"Inference time: {average_inference_time_ms:.2f} ms") 
 
-    """ Loss exploration 
+    Loss exploration 
     inputs = torch.rand(1, 3, 64, 240)
     loss_fn = StixelObjectLoss(weights=config['loss_w_cls'])
     l1 = loss_fn(inputs, inputs)

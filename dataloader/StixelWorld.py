@@ -237,7 +237,7 @@ def _find_nearest_depth(column_anchors: pd.DataFrame, depth, floor=False):
 
 
 def _feature_transform_resize(x_features: torch.Tensor, target_size: Dict[str, int]) -> torch.Tensor:
-    size = (target_size['width'], target_size['height'])
+    size = (target_size['height'], target_size['width'])
     x_features_resized = F.interpolate(x_features.unsqueeze(0), size=size, mode='bilinear', align_corners=False)
     return x_features_resized.squeeze(0)
 
