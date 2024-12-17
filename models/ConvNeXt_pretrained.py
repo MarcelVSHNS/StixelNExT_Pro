@@ -119,7 +119,7 @@ def convnext_stixel(n_candidates: int = 64, config: Optional[Dict[str, Any]] = N
     c: int = config['C']
     depths_b: List[int] = config['B']
     i_attr: int = config['i_attr']
-    model_params = {'name': "ConvNeXt", 'C': c, 'B': depths_b, 'n_cand': n_candidates, 'i_attr': i_attr}
+    model_params = {'name': "ConvNeXt_kitti", 'C': c, 'B': depths_b, 'n_cand': n_candidates, 'i_attr': i_attr}
     if c == 96 and depths_b == [3, 3, 9, 3]:
         weights = ConvNeXt_Tiny_Weights.DEFAULT
         # weights = ConvNeXt_Tiny_Weights.verify(weights)

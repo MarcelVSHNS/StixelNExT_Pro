@@ -136,7 +136,7 @@ def train(rank, world_size):
 
     """ 3.Training """
     # Inspect model
-    summary(model, (config['batch_size'], 3, 1280, 1920))
+    summary(model, (config['batch_size'], 3, 384, 1280))
 
     # Training
     early_stopping = EarlyStopping(tolerance=config['early_stop']['tol'],
