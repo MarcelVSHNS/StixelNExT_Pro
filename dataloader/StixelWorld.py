@@ -29,7 +29,7 @@ class StixelData(Dataset):
         self.data_dir = os.path.join(data_dir, phase)
         self.name: str = f"{os.path.basename(data_dir)}.{phase}"
         # self.depth_anchors = _create_depth_bins(depth_anchors)
-        self.depth_anchors = _create_depth_bins(depth_anchors)
+        self.depth_anchors: pd.DataFrame = _create_depth_bins(depth_anchors)
         self.sample_map: List[str] = os.listdir(os.path.join(self.data_dir))
         self.mode = mode
         self.transform = transform
