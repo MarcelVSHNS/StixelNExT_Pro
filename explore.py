@@ -55,7 +55,6 @@ def main():
     input_shape = (1, 3, 384, 1280)
     model, _ = convnext_stixel()
     summary(model, input_size=input_shape)
-    """
     model = model.to(device)
     times = []
     for i in range(1):
@@ -68,9 +67,9 @@ def main():
     # print(f"Output shape: {output.shape}")
     times_in_ms = [t.total_seconds() * 1000 for t in times]
     average_inference_time_ms = sum(times_in_ms) / len(times_in_ms)
-    print(f"Inference time: {average_inference_time_ms:.2f} ms") 
+    print(f"Inference time: {average_inference_time_ms:.2f} ms")
 
-    Loss exploration 
+    """ Loss exploration 
     inputs = torch.rand(1, 3, 64, 240)
     loss_fn = StixelObjectLoss(weights=config['loss_w_cls'])
     l1 = loss_fn(inputs, inputs)

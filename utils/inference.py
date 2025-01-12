@@ -2,6 +2,7 @@
 TODO: write function to find sweetspot prob_thres to get stixel
 """
 import yaml
+
 # 0.1 Load configfile
 with open('config.yaml') as yamlfile:
     config = yaml.load(yamlfile, Loader=yaml.FullLoader)
@@ -29,7 +30,7 @@ else:
 
 
 def main():
-    p_threshold = 0.56
+    p_threshold = 0.4
     save_img: bool = False
     show_3d: bool = False
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -126,7 +127,6 @@ def main():
     # Zeige den Plot an
     plt.show()
 
-
     # test = output[0, 0:3, :, 110].numpy()
     # test_targ = target_tensor[0, 0:3, :, 110].numpy()
     stixel_world_batch = revert_fn(prediction=output,
@@ -137,7 +137,6 @@ def main():
                                         anchors=testing_data.depth_anchors,
                                         stxl_wrld_paths=stxl_wrld_paths,
                                         prob=p_threshold)
-
 
     stixel_world: stx.StixelWorld = stixel_world_batch[0]
     stixel_img = stx.draw_stixels_on_image(stixel_world)
