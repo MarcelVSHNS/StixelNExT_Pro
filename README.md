@@ -30,9 +30,6 @@ points in Cartesian space**.
 ### **Waymo Dataset – Stixel Prediction**
 
 ![Result](docs/result.PNG)
-
-### **3D Stixel Representation**
-
 ![3D Result](docs/results_3d_stx.png)
 
 By clustering Stixels, we achieve competitive **object detection** performance.
@@ -41,8 +38,8 @@ By clustering Stixels, we achieve competitive **object detection** performance.
 
 ![Clustering Result](docs/clustering_result.png)
 
-We also trained models on the **KITTI dataset**, expanding our approach to capture all possible obstacles, including *
-*buildings, vegetation, and environmental structures**.
+We also trained models on the **KITTI dataset**, expanding our approach to capture all possible obstacles, including
+**buildings, vegetation, and environmental structures**.
 
 ### **KITTI Dataset – Holistic Scene Representation**
 
