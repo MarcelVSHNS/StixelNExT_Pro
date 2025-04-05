@@ -28,7 +28,7 @@ os.environ["WANDB_REPORT_API_DISABLE_MESSAGE"] = "True"
 
 
 def main():
-    testing_data = StixelData(data_dir=config['data_path'], phase='validation', mode=config['mode'],
+    testing_data = StixelData(data_dir=config['data_path'], phase='training', mode=config['mode'],
                               depth_anchors=(4, 66, config['n_cand']), target_trans_blur=config['blur'],
                               transform=True)
     testing_dataloader = DataLoader(testing_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True,
@@ -73,19 +73,19 @@ def main():
                           stxl_wrld_paths=[sample_path],
                           prob=probability)
     print(f"reverting time: {datetime.now() - start_time}")
-    stxl_wrld_clustered = stx.attach_dbscan_clustering(stxl_wrld[0], min_samples=1)
-    clustered_img = stx.draw_stixels_on_image(stxl_wrld_clustered, instances=True)
+    # stxl_wrld_clustered = stx.attach_dbscan_clustering(stxl_wrld[0], min_samples=1)
+    # clustered_img = stx.draw_stixels_on_image(stxl_wrld_clustered, instances=True)
     stxl_img = stx.draw_stixels_on_image(stxl_wrld[0])
     input_img = Image.open(io.BytesIO(stxl_wrld[0].image))
     stxl_gt_img = stx.draw_stixels_on_image(stxl_original)
 
     width, height = input_img.size
     canvas_width = width
-    canvas_height = height * 3
+    canvas_height = height * 2
     canvas = Image.new("RGB", (canvas_width, canvas_height), (0, 0, 0))
-    canvas.paste(input_img, (0, 0))
+    canvas.paste(stxl_gt_img, (0, 0))
     canvas.paste(stxl_img, (0, height))
-    canvas.paste(clustered_img, (0, height * 2))
+    # canvas.paste(clustered_img, (0, height * 2))
     canvas.show()
 
 

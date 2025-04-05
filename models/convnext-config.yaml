@@ -2,4 +2,5 @@ C: 96
 B: [ 3, 3, 9, 3 ]
 stem_features: 64
 i_attr: 3
-n_bins: 64            # segmentation only
+n_cand: 64
+name: ConvNeXt_coop_scenes

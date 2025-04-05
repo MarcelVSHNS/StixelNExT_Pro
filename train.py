@@ -85,7 +85,7 @@ def train(rank, world_size):
     val_dataloader = DataLoader(validation_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True)
 
     """ 2.Define Model & Loss """
-    model, model_cfg = model_fn(n_candidates=config['n_cand'])
+    model, model_cfg = model_fn()
     model = model.to(rank)
     model = DDP(model, device_ids=[rank], find_unused_parameters=True)
     # Optimizer definition
@@ -136,7 +136,7 @@ def train(rank, world_size):
 
     """ 3.Training """
     # Inspect model
-    summary(model, (config['batch_size'], 3, 384, 1280))
+    summary(model, (config['batch_size'], 3, training_data.img_size["height"], training_data.img_size["width"]))
 
     # Training
     early_stopping = EarlyStopping(tolerance=config['early_stop']['tol'],
