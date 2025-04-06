@@ -10,6 +10,8 @@ import numpy as np
 from typing import List, Tuple, Dict, Optional
 import stixel as stx
 import torch.nn.functional as F
+from torchvision import transforms
+import random
 
 from stixel import Stixel
 from stixel.stixel_world_pb2 import StixelWorld
@@ -25,6 +27,8 @@ class StixelData(Dataset):
                  mode: str,
                  depth_anchors: Tuple[int, int, int],
                  transform: bool = False,
+                 resize: bool = False,
+                 flip: Optional[float] = None,
                  target_trans_blur: bool = False):
         self.data_dir = os.path.join(data_dir, phase)
         self.name: str = f"{os.path.basename(data_dir)}.{phase}"
@@ -34,7 +38,27 @@ class StixelData(Dataset):
         self.img_size = {'height': 1200, 'width': 1920}
         print(f"{self.name}: {self.img_size}")
         self.transform = transform
-        self.transform = transform
+        # add augmentation
+        if transform:
+            self.image_transform = transforms.Compose([
+                transforms.ToPILImage(),
+                transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+                transforms.RandomGrayscale(p=0.1),
+                transforms.GaussianBlur(kernel_size=3),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])
+            ])
+        else:
+            self.image_transform = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])
+            ])
+        self.resize = resize
+        self.flip = flip
+        if self.flip is not None:
+            self.hflip_stixel = RandomHorizontalFlipStixel(p=self.flip)
         self.target_trans_blur = target_trans_blur
 
     # 2. Implement __len()__
@@ -45,13 +69,16 @@ class StixelData(Dataset):
     def __getitem__(self, idx):
         stxl_wrld: stx.StixelWorld = stx.read(os.path.join(self.data_dir, self.sample_map[idx]))
         img = np.array(Image.open(io.BytesIO(stxl_wrld.image)))
-        feature_image: torch.Tensor = torch.from_numpy(img).to(torch.float32)
-        feature_image = rearrange(feature_image, "h w c -> c h w")
+        # feature_image: torch.Tensor = torch.from_numpy(img).to(torch.float32)
+        # feature_image = rearrange(feature_image, "h w c -> c h w")
+        feature_image = self.image_transform(img)
         target_labels = stx.convert_to_matrix(stxl_wrld)
         if self.mode == "classification":
             target_labels = self._classification_target_label(target_labels, out_bins=self.depth_anchors.shape[0])
-        if self.transform:
+        if self.resize:
             feature_image = _feature_transform_resize(feature_image, self.img_size)
+        if self.flip is not None:
+            feature_image, target_labels = self.hflip_stixel(feature_image, target_labels)
         return feature_image, target_labels, os.path.join(self.data_dir, self.sample_map[idx])
 
     def _classification_target_label(self, y_target: np.array,
@@ -205,3 +232,21 @@ def _create_depth_bins_linear(cfg: Tuple[int, int, int]):
     df = df.T
     df.columns = [str(i) for i in range(120)]
     return df
+
+
+class RandomHorizontalFlipStixel:
+    def __init__(self, p: float = 0.5):
+        self.p = p
+
+    def __call__(self, image: torch.Tensor, target: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        Flipt Bild und GT horizontal mit Wahrscheinlichkeit p.
+        Erwartet image: Tensor mit (C, H, W)
+        Erwartet target: Tensor mit (3, 64, 120)
+        """
+        if random.random() < self.p:
+            # Flip image (width)
+            image = torch.flip(image, dims=[2])
+            # Flip Ground Truth (col axis: 2)
+            target = torch.flip(target, dims=[2])
+        return image, target
