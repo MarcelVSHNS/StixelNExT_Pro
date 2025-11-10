@@ -8,6 +8,7 @@ import os
 import torch
 import wandb
 from torch.utils.data import DataLoader, DistributedSampler
+from transformers import get_cosine_schedule_with_warmup
 import torch.multiprocessing as mp
 from torchinfo import summary
 from typing import Dict
@@ -73,14 +74,14 @@ def train(rank, world_size):
     data_dir = os.path.join(tmpdir, config['data_path'])
     training_data = StixelData(data_dir=data_dir, phase='training', mode=config['mode'],
                                target_trans_blur=config['blur'], depth_anchors=(4, 66, config['n_cand']),
-                               transform=True)
+                               transform=True, resize=False, flip=0.5)
     training_sampler = DistributedSampler(training_data, num_replicas=world_size, rank=rank)
     train_dataloader = DataLoader(training_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True,
                                   sampler=training_sampler)
     # Validation data
     validation_data = StixelData(data_dir=data_dir, phase='validation', mode=config['mode'],
                                  depth_anchors=(4, 66, config['n_cand']),
-                                 transform=True)
+                                 transform=False, resize=False, flip=None)
     # validation_sampler = DistributedSampler(validation_data, num_replicas=world_size, rank=rank)
     val_dataloader = DataLoader(validation_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True)
 
@@ -90,6 +91,16 @@ def train(rank, world_size):
     model = DDP(model, device_ids=[rank], find_unused_parameters=True)
     # Optimizer definition
     optimizer = torch.optim.AdamW(model.parameters(), lr=config['learning_rate'])
+    # LR Scheduler
+    steps_per_epoch = len(train_dataloader)
+    total_training_steps = config['epochs'] * steps_per_epoch
+    warmup_steps = int(0.05 * total_training_steps)
+    scheduler = get_cosine_schedule_with_warmup(
+        optimizer,
+        num_warmup_steps=warmup_steps,
+        num_training_steps=total_training_steps
+    )
+
     # Loss initialization
     loss_weights: Dict[str, float] = {}
     if config['mode'] == "segmentation":
@@ -145,8 +156,9 @@ def train(rank, world_size):
     for epoch in range(start_epoch, config['epochs']):
         print(f"\n   Epoch {epoch}\n----------------------------------------------------------------")
         training_sampler.set_epoch(epoch)
+        lr_decay = scheduler if config['lr_decay'] else None
         train_loss = train_one_epoch(train_dataloader, model, loss_fn, optimizer,
-                                     device=rank, writer=wandb_logger)
+                                     scheduler=lr_decay, device=rank, writer=wandb_logger)
         eval_loss = evaluate(val_dataloader, model, loss_fn,
                              device=rank, writer=wandb_logger)
         # Save model

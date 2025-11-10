@@ -24,12 +24,12 @@ from datetime import datetime
 
 
 def main():
-    """ data load
+    """ data load"""
     testing_data = StixelData(data_dir=config['data_path'], phase='validation', mode=config['mode'],
                               depth_anchors=(4, 66, config['n_cand']), target_trans_blur=False)
     testing_dataloader = DataLoader(testing_data, batch_size=config['batch_size'], pin_memory=True, drop_last=True,
                                     shuffle=True)
-    print(testing_data.depth_anchors)"""
+    print(testing_data.depth_anchors)
     # img_tensors, target_tensors, stxl_wrld_paths = next(iter(testing_dataloader))
     """ Data exploration 
     if config['mode'] == 'classification':

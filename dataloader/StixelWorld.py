@@ -34,6 +34,12 @@ class StixelData(Dataset):
         self.name: str = f"{os.path.basename(data_dir)}.{phase}"
         self.depth_anchors = _create_depth_bins(depth_anchors)
         self.sample_map: List[str] = os.listdir(os.path.join(self.data_dir))
+        """
+        self.sample_map: List[str] = [
+            f for f in os.listdir(os.path.join(self.data_dir))
+            if "stereo_left" in f
+        ]
+        """
         self.mode = mode
         self.img_size = {'height': 1200, 'width': 1920}
         print(f"{self.name}: {self.img_size}")
@@ -56,6 +62,8 @@ class StixelData(Dataset):
                 transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
             ])
+            # self.image_transform = old_img_transform
+
         self.resize = resize
         self.flip = flip
         if self.flip is not None:
@@ -106,7 +114,7 @@ class StixelData(Dataset):
             anchor, anchor_idx = _find_nearest_depth(self.depth_anchors[f'{col}'], stixel['d'])
             # encoding: bottom point vB, top point vT, distance d, probability P
             if i_attr == 3:
-                gt_stx_mtx[col][anchor_idx] = [stixel['vB'], stixel['vT'], 1.0]
+                gt_stx_mtx[col][anchor_idx] = [stixel['vB'], stixel['vT'], stixel['confidence']]
                 if shadowing and anchor_idx >= 2 and gt_stx_mtx[col][anchor_idx - 1][2] == 0.0:
                     gt_stx_mtx[col][anchor_idx - 1] = [stixel['vB'], stixel['vT'], 0.66]
                     gt_stx_mtx[col][anchor_idx - 2] = [stixel['vB'], stixel['vT'], 0.25]
@@ -117,28 +125,11 @@ class StixelData(Dataset):
         label = rearrange(label, "w n a -> a n w")
         return label
 
-    def _segmentation_target_label(self, y_target: np.array,
-                                   out_bins: int = 192,
-                                   u_scale: int = 8,
-                                   v_scale: int = 8
-                                   ) -> torch.tensor:
-        y_target['u'] //= u_scale
-        y_target['vT'] //= v_scale
-        y_target['vB'] //= v_scale
-        width = self.img_size['width'] // u_scale
-        height = self.img_size['height'] // v_scale
 
-        # shape: depth, height, width
-        gt_stx_mtx = np.zeros((out_bins, height, width))
-        for stixel in y_target:
-            col = stixel['u']
-            if col < 0:
-                continue
-            anchor, anchor_idx = _find_nearest_depth(self.depth_anchors[f'{col}'], stixel['d'])
-            for voxel_col in range(stixel['vT'], stixel['vB']):
-                gt_stx_mtx[anchor_idx, int(voxel_col), int(stixel['u'])] = 1
-        label = torch.from_numpy(gt_stx_mtx).to(torch.float32)
-        return label
+def old_img_transform(img):
+    feature_image: torch.Tensor = torch.from_numpy(img).to(torch.float32)
+    feature_image = rearrange(feature_image, "h w c -> c h w")
+    return feature_image
 
 
 def revert_class(prediction: torch.Tensor,

@@ -1,7 +1,3 @@
-# classification:
-- lr = little bit higher, test: 3e-4
-- epochs ~ 50
+# Improvements
 
-# segmentation
-- lr = 1e-5
-- epochs ~ 50
+* Test Learning rate decay

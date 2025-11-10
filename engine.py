@@ -3,7 +3,13 @@ import torch.distributed as dist
 
 
 # Training Function
-def train_one_epoch(dataloader, model, loss_fn, optimizer, device, writer=None) -> float:
+def train_one_epoch(dataloader,
+                    model,
+                    loss_fn,
+                    optimizer,
+                    device,
+                    scheduler=None,
+                    writer=None) -> float:
     num_batches = len(dataloader.dataset)
     train_loss = 0.0
     model.train()
@@ -23,6 +29,10 @@ def train_one_epoch(dataloader, model, loss_fn, optimizer, device, writer=None) 
         loss.backward()
         # write the weights to the NN
         optimizer.step()
+        # scheduler update per batch
+        if scheduler is not None:
+            scheduler.step()
+            
         if batch_idx % 100 == 0:
             loss, current = loss.item(), batch_idx * len(samples)
             print(f"loss: {loss:>7f}  [{current:>5d}/{num_batches:>5d}], \t")
