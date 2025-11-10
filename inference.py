@@ -56,7 +56,7 @@ def main():
     result_dir = os.path.join('sample_results', chckpt_filename)
     os.makedirs(result_dir, exist_ok=True)
     idx = random.randint(0, len(testing_data) - 1)
-    idx = 9078
+    # idx = 9078
     print(f"random Idx: {idx}")
     sample, _, sample_path = testing_data[idx]
     stxl_original = stx.read(sample_path)  # 31 for default sample
