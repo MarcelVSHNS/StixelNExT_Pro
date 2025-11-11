@@ -49,4 +49,7 @@ We also trained models on the **KITTI dataset**, expanding our approach to captu
 
 ## 🔜 **Stay Tuned!**
 
+Demonstration Video: [Demonstration of the StixelNExT++ Neural Network Model](https://youtu.be/LADEQWUZx8U)
+Preprint Paper on Arxiv: [StixelNExT++: Lightweight Monocular Scene Segmentation and Representation for Collective Perception](https://arxiv.org/abs/2507.06687)
+
 More updates coming soon! 🚀  
