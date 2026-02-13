@@ -30,7 +30,7 @@ class StixelData(Dataset):
         self.name: str = f"{os.path.basename(data_dir)}.{phase}"
         # self.depth_anchors = _create_depth_bins(depth_anchors)
         self.depth_anchors = _create_depth_bins(depth_anchors)
-        self.sample_map: List[str] = os.listdir(os.path.join(self.data_dir))
+        self.sample_map: List[str] = sorted(os.listdir(os.path.join(self.data_dir)))
         self.mode = mode
         self.transform = transform
         self.target_trans_blur = target_trans_blur

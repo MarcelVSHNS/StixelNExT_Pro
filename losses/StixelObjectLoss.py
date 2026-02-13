@@ -14,6 +14,8 @@ class DepthWeightedBCELoss(nn.Module):
         self.max_depth = n_cand
 
     def forward(self, inputs, targets):
+        # avoid log(0) / log(1) in BCE terms
+        inputs = inputs.clamp(min=1e-6, max=1 - 1e-6)
         depth_indices = torch.arange(self.max_depth, device=inputs.device).unsqueeze(0).unsqueeze(-1)
 
         alpha = self.min_alpha + (depth_indices / self.max_depth) * (
@@ -88,5 +90,9 @@ class StixelObjectLoss(nn.Module):
 
         # summarize all partial losses and apply mask
         masked_seg_loss = (top_loss + bottom_loss) * mask
-        seg_loss = masked_seg_loss.sum() / mask.sum()
+        mask_sum = mask.sum()
+        if mask_sum > 0:
+            seg_loss = masked_seg_loss.sum() / mask_sum
+        else:
+            seg_loss = torch.tensor(0.0, device=inputs.device)
         return depth_bin_loss + seg_loss  # + depth_loss  + depth_length_ratio_loss
