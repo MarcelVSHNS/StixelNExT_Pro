@@ -9,8 +9,7 @@ import os
 import torch
 # import torchvision.ops
 # from torchvision.models.convnext import ConvNeXt
-from models import convnext_stixel, get_model, get_model, efficientnet_stixel, mobilenet_stixel, \
-    swin_transformer_stixel, shufflenet_stixel
+from models import convnext_stixel
 from torchinfo import summary
 from models.ConvNeXt_pretrained import ColumnAttention
 from losses import StixelObjectLoss, StixelVoxelLoss
