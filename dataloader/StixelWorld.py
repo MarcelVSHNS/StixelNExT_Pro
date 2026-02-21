@@ -24,6 +24,9 @@ class StixelData(Dataset):
                  phase: str,
                  mode: str,
                  depth_anchors: Tuple[int, int, int],
+                 return_depth_maps: bool = False,
+                 u_scale: int = 8,
+                 v_scale: int = 8,
                  transform: bool = False,
                  target_trans_blur: bool = False):
         self.data_dir = os.path.join(data_dir, phase)
@@ -32,6 +35,9 @@ class StixelData(Dataset):
         self.depth_anchors = _create_depth_bins(depth_anchors)
         self.sample_map: List[str] = sorted(os.listdir(os.path.join(self.data_dir)))
         self.mode = mode
+        self.return_depth_maps = return_depth_maps
+        self.u_scale = u_scale
+        self.v_scale = v_scale
         self.transform = transform
         self.target_trans_blur = target_trans_blur
 
@@ -57,6 +63,9 @@ class StixelData(Dataset):
             feature_image = _feature_transform_resize(feature_image, self.img_size)
         if self.target_trans_blur and self.mode == "segmentation":
             target_labels = _target_transform_gaussian_blur(target_labels)
+        if self.return_depth_maps:
+            gt_depth_map, gt_mask = _stixel_world_to_depth_map(stxl_wrld, u_scale=self.u_scale, v_scale=self.v_scale)
+            return feature_image, target_labels, os.path.join(self.data_dir, self.sample_map[idx]), gt_depth_map, gt_mask
         # delete ground truth Stixel from object
         # del stxl_wrld.stixel[:]
         return feature_image, target_labels, os.path.join(self.data_dir, self.sample_map[idx])
@@ -278,3 +287,50 @@ def _create_depth_bins_linear(cfg: Tuple[int, int, int]):
     df = df.T
     df.columns = [str(i) for i in range(240)]
     return df
+
+
+def _stixel_world_to_depth_map(stxl_wrld: stx.StixelWorld,
+                               u_scale: int = 8,
+                               v_scale: int = 8) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    Convert StixelWorld GT stixels into a stixel-raster depth map [H, W] in meters and valid mask.
+    """
+    img_height = int(stxl_wrld.context.calibration.height)
+    img_width = int(stxl_wrld.context.calibration.width)
+    stixel_height = max(img_height // int(v_scale), 1)
+    stixel_width = max(img_width // int(u_scale), 1)
+
+    depth_map = np.full((stixel_height, stixel_width), np.inf, dtype=np.float32)
+    valid_mask = np.zeros((stixel_height, stixel_width), dtype=bool)
+
+    for stxl in stxl_wrld.stixel:
+        depth_val = float(stxl.d)
+        if not np.isfinite(depth_val) or depth_val <= 0.0:
+            continue
+
+        u_start = int(stxl.u) // int(u_scale)
+        u_span = max(int(stxl.width) // int(u_scale), 1)
+        u_end = u_start + u_span - 1
+
+        v_top = int(stxl.vT)
+        v_bottom = int(stxl.vB)
+        if v_top > v_bottom:
+            v_top, v_bottom = v_bottom, v_top
+
+        v_top = max(0, min(v_top, img_height - 1))
+        v_bottom = max(0, min(v_bottom, img_height - 1))
+
+        v_top = max(0, min(v_top // int(v_scale), stixel_height - 1))
+        v_bottom = max(0, min(v_bottom // int(v_scale), stixel_height - 1))
+
+        u_start = max(0, min(u_start, stixel_width - 1))
+        u_end = max(0, min(u_end, stixel_width - 1))
+        if v_bottom < v_top or u_end < u_start:
+            continue
+
+        current = depth_map[v_top: v_bottom + 1, u_start: u_end + 1]
+        depth_map[v_top: v_bottom + 1, u_start: u_end + 1] = np.minimum(current, depth_val)
+        valid_mask[v_top: v_bottom + 1, u_start: u_end + 1] = True
+
+    depth_map[~valid_mask] = 0.0
+    return torch.from_numpy(depth_map), torch.from_numpy(valid_mask)
