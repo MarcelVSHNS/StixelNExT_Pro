@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 import torch
 
+LOG_DEPTH_EPS = 1e-6
+
 
 def anchors_to_tensor(anchors: Union[pd.DataFrame, np.ndarray, torch.Tensor]) -> torch.Tensor:
     """Convert depth anchors to a tensor with shape [N, U]."""
@@ -29,14 +31,14 @@ def stixel_to_depth_map(
     p_threshold: Optional[float] = None,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
-    Convert a stixel prediction tensor [3, N, U] into a depth map [H, U] and valid mask [H, U].
+    Convert a stixel prediction tensor [4, N, U] into a depth map [H, U] and valid mask [H, U].
     """
     del u_scale  # width U is already in stixel columns
 
     if pred.ndim != 3:
-        raise ValueError(f"Expected pred shape [3, N, U], got {tuple(pred.shape)}")
-    if pred.shape[0] < 3:
-        raise ValueError("Prediction tensor must have at least 3 attributes [vB, vT, p].")
+        raise ValueError(f"Expected pred shape [4, N, U], got {tuple(pred.shape)}")
+    if pred.shape[0] != 4:
+        raise ValueError("Prediction tensor must have exactly 4 attributes [vB, vT, d, P].")
 
     pred = pred.detach().to(torch.float32)
     anchor_t = anchors_to_tensor(anchors).to(torch.float32)
@@ -46,7 +48,7 @@ def stixel_to_depth_map(
     if anchor_t.ndim != 2 or anchor_t.shape[0] != n_classes or anchor_t.shape[1] != width:
         raise ValueError(f"Anchors must be [N, U]=[{n_classes}, {width}], got {tuple(anchor_t.shape)}")
 
-    p = pred[2]
+    p = pred[3]
     if p_is_logit:
         p = torch.sigmoid(p)
 
@@ -78,7 +80,7 @@ def stixel_to_depth_map(
         if vb < vt:
             continue
 
-        depth_val = float(anchor_t[k, u].item())
+        depth_val = decode_depth_residual(pred[2, k, u].item(), anchor_t[k, u].item())
         if not np.isfinite(depth_val) or depth_val <= 0.0:
             continue
 
@@ -86,3 +88,8 @@ def stixel_to_depth_map(
         mask[vt: vb + 1, u] = True
 
     return depth_map, mask
+
+
+def decode_depth_residual(depth_residual: float, anchor_depth: float) -> float:
+    anchor_depth = max(float(anchor_depth), LOG_DEPTH_EPS)
+    return float(np.exp(np.log(anchor_depth) + float(depth_residual)))

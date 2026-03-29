@@ -4,7 +4,7 @@ from torch import nn, Tensor
 from torchvision.models import ConvNeXt, ConvNeXt_Tiny_Weights
 from torchvision.models.convnext import CNBlockConfig, _convnext
 import torch.nn.functional as F
-from einops import rearrange, reduce
+from einops import rearrange
 from functools import partial
 import yaml
 
@@ -17,77 +17,58 @@ class LayerNorm2d(nn.LayerNorm):
         return x
 
 
-class ColumnAttention(nn.Module):
-    def __init__(self, feature_dim):
-        super(ColumnAttention, self).__init__()
-
-        self.query_layer = nn.Linear(feature_dim, feature_dim)
-        self.key_layer = nn.Linear(feature_dim, feature_dim)
-        self.value_layer = nn.Linear(feature_dim, feature_dim)
-        self.scale = feature_dim ** 0.5
+class LocalColumnMixing(nn.Module):
+    def __init__(self, channels: int, kernel_size: int = 5):
+        super(LocalColumnMixing, self).__init__()
+        padding = kernel_size // 2
+        self.depthwise = nn.Conv2d(
+            in_channels=channels,
+            out_channels=channels,
+            kernel_size=(1, kernel_size),
+            padding=(0, padding),
+            groups=channels,
+        )
+        self.pointwise = nn.Conv2d(in_channels=channels, out_channels=channels, kernel_size=1)
+        self.activation = nn.GELU()
 
     def forward(self, x):
-        batch, feature_dim, height, width = x.size()
-        # If height > 1, pool across height to get per-column features
-        if height > 1:
-            x = x.mean(dim=2)
-        else:
-            x = x.squeeze(2)
-
-        # shape: [B, W, C]
-        x = x.permute(0, 2, 1)
-        queries = self.query_layer(x)
-        keys = self.key_layer(x)
-        values = self.value_layer(x)
-
-        # global attention across all columns
-        attention_scores = torch.bmm(queries, keys.transpose(1, 2)) / self.scale
-        attention_weights = F.softmax(attention_scores, dim=-1)
-        attention_output = torch.bmm(attention_weights, values)
-
-        # back to [B, C, 1, W]
-        attention_output = attention_output.permute(0, 2, 1).unsqueeze(2)
-        return attention_output
-
-
-def combine_attention_prediction(attention_output, prediction_output, method='concat'):
-    if method == 'concat':
-        combined = torch.cat((attention_output, prediction_output), dim=1)
-    elif method == 'add':
-        combined = attention_output + prediction_output
-    elif method == 'mean':
-        combined = (attention_output + prediction_output) / 2
-    elif method == 'weighted_sum':
-        combined = 0.7 * attention_output + 0.3 * prediction_output
-    else:
-        raise ValueError("Unknown")
-    return combined
+        return self.pointwise(self.activation(self.depthwise(x)))
 
 
 class StixelHead(nn.Module):
-    def __init__(self, in_channels, out_channels, i_attributes):
+    def __init__(self, in_channels, out_channels):
         super(StixelHead, self).__init__()
+        n_attributes = 4
+        assert out_channels % n_attributes == 0, "NN depth does not match, adapt n_channels."
+        self.n_candidates = out_channels // n_attributes
         norm_layer = partial(LayerNorm2d, eps=1e-6)
         self.up = nn.Sequential(
             nn.Upsample(size=(1, 240), mode='nearest'),
             norm_layer(out_channels))
-        self.channel_reduce = nn.Conv2d(in_channels=in_channels * 2, out_channels=out_channels, kernel_size=1)
-        self.attention_layer = ColumnAttention(768)
-        self.attention_influence = partial(combine_attention_prediction, method="concat")
-        self.out_channels = out_channels
-        self.i_attributes = i_attributes
-        self.activation = nn.Sigmoid()
+        self.local_mixing = LocalColumnMixing(channels=in_channels)
+        self.shared_reduce = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=1)
+        self.geometry_head = nn.Conv2d(in_channels=out_channels, out_channels=2 * self.n_candidates, kernel_size=1)
+        self.depth_head = nn.Conv2d(in_channels=out_channels, out_channels=self.n_candidates, kernel_size=1)
+        self.probability_head = nn.Conv2d(in_channels=out_channels, out_channels=self.n_candidates, kernel_size=1)
+        self.geometry_activation = nn.Sigmoid()
+        self.depth_activation = nn.Sigmoid()
+        self.probability_activation = nn.Sigmoid()
 
     def forward(self, x):
-        attention_x = self.attention_layer(x)
-        x = self.attention_influence(attention_x, x)
-        x = self.channel_reduce(x)
-        x = self.up(x)
-        assert self.out_channels % self.i_attributes == 0, "NN depth does not match, adapt n_channels."
-        n_candidates = self.out_channels // self.i_attributes
-        x = rearrange(x, 'b (a n) h w -> b a n h w', a=self.i_attributes, n=n_candidates)
-        # output = reduce(output, 'b a n h w -> b a n w', 'mean')
-        return self.activation(x.squeeze(dim=3))
+        x = x + self.local_mixing(x)
+        shared_features = self.up(self.shared_reduce(x))
+
+        geometry = self.geometry_activation(self.geometry_head(shared_features))
+        geometry = rearrange(geometry, 'b (a n) h w -> b a n h w', a=2, n=self.n_candidates)
+
+        depth = self.depth_activation(self.depth_head(shared_features))
+        depth = rearrange(depth, 'b n h w -> b 1 n h w')
+
+        probability = self.probability_activation(self.probability_head(shared_features))
+        probability = rearrange(probability, 'b n h w -> b 1 n h w')
+
+        output = torch.cat((geometry, depth, probability), dim=1)
+        return output.squeeze(dim=3)
 
 
 class SegmentationHead(nn.Module):
@@ -115,8 +96,8 @@ def convnext_stixel(n_candidates: int = 64, config: Optional[Dict[str, Any]] = N
             config = yaml.load(file, Loader=yaml.FullLoader)
     c: int = config['C']
     depths_b: List[int] = config['B']
-    i_attr: int = config['i_attr']
-    model_params = {'name': "ConvNeXt", 'C': c, 'B': depths_b, 'n_cand': n_candidates, 'i_attr': i_attr}
+    n_attributes = 4
+    model_params = {'name': "ConvNeXt", 'C': c, 'B': depths_b, 'n_cand': n_candidates}
     if c == 96 and depths_b == [3, 3, 9, 3]:
         weights = ConvNeXt_Tiny_Weights.DEFAULT
         # weights = ConvNeXt_Tiny_Weights.verify(weights)
@@ -135,8 +116,7 @@ def convnext_stixel(n_candidates: int = 64, config: Optional[Dict[str, Any]] = N
     model = _convnext(block_setting, stochastic_depth_prob, weights, True, **kwargs)
     model.avgpool = nn.AvgPool2d(kernel_size=(40, 1), stride=(40, 1))
     model.classifier = StixelHead(in_channels=c * 8,
-                                  out_channels=i_attr * n_candidates,
-                                  i_attributes=i_attr)
+                                  out_channels=n_attributes * n_candidates)
     return model, model_params
 
 

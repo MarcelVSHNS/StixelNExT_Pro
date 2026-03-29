@@ -11,6 +11,7 @@ def train_one_epoch(dataloader, model, loss_fn, optimizer, device, epoch: int, w
                     log_every: int = 100) -> float:
     num_batches = len(dataloader)
     train_loss = 0.0
+    component_sum: Dict[str, float] = {}
     model.train()
 
     for batch_idx, (samples, targets, _) in enumerate(dataloader):
@@ -21,6 +22,9 @@ def train_one_epoch(dataloader, model, loss_fn, optimizer, device, epoch: int, w
         loss = loss_fn(outputs, targets)
 
         train_loss += float(loss.item())
+        if hasattr(loss_fn, "last_components"):
+            for key, value in getattr(loss_fn, "last_components").items():
+                component_sum[key] = component_sum.get(key, 0.0) + float(value)
 
         optimizer.zero_grad()
         loss.backward()
@@ -40,6 +44,8 @@ def train_one_epoch(dataloader, model, loss_fn, optimizer, device, epoch: int, w
 
     if writer is not None:
         writer.add_scalar("Loss/train", train_loss, epoch)
+        for key in sorted(component_sum.keys()):
+            writer.add_scalar(f"Loss/train_{key}", component_sum[key] / max(num_batches, 1), epoch)
 
     return train_loss
 
@@ -74,6 +80,7 @@ def evaluate(
     num_batches = len(dataloader)
     model.eval()
     eval_loss = 0.0
+    component_sum: Dict[str, float] = {}
     metric_sum: Dict[str, float] = {}
     metric_count: Dict[str, int] = {}
 
@@ -88,6 +95,9 @@ def evaluate(
             outputs = model(samples)
             loss = loss_fn(outputs, targets)
             eval_loss += float(loss.item())
+            if hasattr(loss_fn, "last_components"):
+                for key, value in getattr(loss_fn, "last_components").items():
+                    component_sum[key] = component_sum.get(key, 0.0) + float(value)
 
             # Depth metrics are optional and require GT depth maps from the dataset.
             if gt_depth_map is None or gt_mask is None or dataset_anchors is None:
@@ -148,6 +158,8 @@ def evaluate(
 
     if writer is not None:
         writer.add_scalar("Loss/val", eval_loss, epoch)
+        for key in sorted(component_sum.keys()):
+            writer.add_scalar(f"Loss/val_{key}", component_sum[key] / max(num_batches, 1), epoch)
         for key in sorted(metric_sum.keys()):
             cnt = max(metric_count.get(key, 0), 1)
             writer.add_scalar(f"eval/{key}", metric_sum[key] / cnt, epoch)

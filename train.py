@@ -97,7 +97,7 @@ def train(rank, world_size):
     """ 2.Define Model & Loss """
     model, model_cfg = model_fn(n_candidates=config['n_cand'])
     model = model.to(rank)
-    model = DDP(model, device_ids=[rank], find_unused_parameters=True)
+    model = DDP(model, device_ids=[rank], find_unused_parameters=False)
     # Optimizer definition
     optimizer = torch.optim.AdamW(model.parameters(), lr=config['learning_rate'])
     # Loss initialization
@@ -106,7 +106,8 @@ def train(rank, world_size):
         loss_weights = config['loss_w_seg']
     elif config['mode'] == "classification":
         loss_weights = config['loss_w_cls']
-    loss_fn = StixelLoss(loss_weights)
+    loss_cfg = config.get("loss_cfg_cls", {}) if config['mode'] == "classification" else {}
+    loss_fn = StixelLoss(loss_weights, classify_cfg=loss_cfg)
 
     # logger
     tb_writer = None
@@ -143,7 +144,7 @@ def train(rank, world_size):
     ckpt_cfg = config.get("checkpoint", {})
     save_best = ckpt_cfg.get("save_best", True)
     save_last = ckpt_cfg.get("save_last", True)
-    save_every = int(ckpt_cfg.get("save_every", 0))
+    save_every = int(ckpt_cfg.get("save_every", 1))
 
     log_every = int(config.get("tensorboard", {}).get("log_every", 100))
     for epoch in range(start_epoch, config["epochs"]):
